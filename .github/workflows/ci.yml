@@ -1,0 +1,32 @@
+name: CI / CD — Ruang Waktu Next.js
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  quality-and-build:
+    name: Typecheck & Production Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript validation
+        run: npm run typecheck
+
+      - name: Build Next.js production bundle
+        run: npm run build
+

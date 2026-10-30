@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#E6EEE9" id="themeColor">
+  <meta name="description" content="Ruang Waktu adalah aplikasi pribadi untuk merencanakan jadwal, tugas, kebiasaan, dan sesi fokus.">
+  <meta name="robots" content="index,follow">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Ruang Waktu">
+  <meta property="og:title" content="Ruang Waktu — Jadwal dan tugas pribadi">
+  <meta property="og:description" content="Atur jadwal, tugas, kebiasaan, dan fokus dalam satu ruang kerja pribadi.">
+  <meta property="og:type" content="website">
+  <title>Ruang Waktu — Jadwal &amp; Tugas Pribadi</title>
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="style.css">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Ruang Waktu",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "Web"
+    }
+  </script>
+</head>
+<body data-theme="light">
+  <a class="skip-link" href="#content">Lewati ke konten</a>
+
+  <div class="shell" id="shell">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar" aria-label="Navigasi utama">
+      <div class="sidebar-top">
+        <a class="brand" href="#dashboard" id="brandLink" aria-label="Ruang Waktu, kembali ke ringkasan">
+          <i aria-hidden="true">R</i>
+          <span class="brand-text">ruang<b>waktu</b></span>
+        </a>
+        <button class="sidebar-close" id="sidebarClose" type="button" aria-label="Tutup navigasi">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <button class="workspace" id="workspaceButton" type="button" aria-label="Pengaturan ruang kerja">
+        <span class="workspace-dot" aria-hidden="true"></span>
+        <span class="workspace-name" id="workspaceLabel">Ruang Pribadi</span>
+        <svg class="workspace-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+
+      <p class="nav-label">RUANG KERJA</p>
+      <nav class="nav" aria-label="Menu ruang kerja">
+        <button class="active" data-view="dashboard" type="button">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+          </svg>
+          <span>Ringkasan</span>
+        </button>
+        <button data-view="calendar" type="button">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="17" rx="2"/>
+            <path d="M16 2v4M8 2v4M3 10h18"/>
+          </svg>
+          <span>Kalender</span>
+        </button>
+        <button data-view="tasks" type="button">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 11l3 3L22 4"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+          <span>Tugas saya</span>
+          <em id="taskBadge">0</em>
+        </button>
+        <button data-view="projects" type="button">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z"/>
+          </svg>
+          <span>Proyek</span>
+        </button>
+      </nav>
+
+      <p class="nav-label lower">KELOLA</p>
+      <nav class="nav" aria-label="Menu pengelolaan">
+        <button data-view="habits" type="button">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M17 2.1l4 4-4 4"/>
+            <path d="M3 12.2v-2a4 4 0 0 1 4-4h14"/>
+            <path d="M7 21.9l-4-4 4-4"/>
+            <path d="M21 11.8v2a4 4 0 0 1-4 4H3"/>
+          </svg>
+          <span>Kebiasaan</span>
+        </button>
+        <button data-view="focus" type="button">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="13" r="8"/>
+            <path d="M12 9v4l2.5 2.5M9 2h6"/>
+          </svg>
+          <span>Mode fokus</span>
+        </button>
+        <button data-view="insights" type="button">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 20V10M12 20V4M6 20v-6"/>
+          </svg>
+          <span>Wawasan</span>
+        </button>
+      </nav>
+
+      <div class="side-bottom">
+        <button class="install-banner" id="installPwaBtn" type="button" hidden>
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+          </svg>
+          <span>Pasang Aplikasi</span>
+        </button>
+        <div class="side-summary" id="sideSummary">
+          <div class="side-summary-head">
+            <span>Target minggu ini</span>
+            <strong id="sideProgressText">0%</strong>
+          </div>
+          <div class="progress slim"><b id="sideProgressBar"></b></div>
+        </div>
+        <button class="settings-nav" data-view="settings" type="button">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>Pengaturan</span>
+        </button>
+      </div>
+    </aside>
+    <div class="sidebar-scrim" id="sidebarScrim"></div>
+
+    <!-- MAIN CONTENT -->
+    <main id="content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="sidebar-toggle" id="hamburger" type="button" aria-label="Buka atau tutup navigasi" aria-controls="sidebar" aria-expanded="true">
+            <span></span><span></span><span></span>
+          </button>
+          <div class="breadcrumb">
+            <span id="crumb">Ringkasan</span>
+            <span class="crumb-sep" id="crumbSep">/</span>
+            <b id="crumbSub">Hari ini</b>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <button class="search" id="search" type="button" aria-label="Cari jadwal atau tugas">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span>Cari jadwal, tugas, atau perintah…</span>
+            <kbd>Ctrl K</kbd>
+          </button>
+
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Beralih ke tema gelap" aria-pressed="false" title="Ubah tema tampilan">
+            <span class="theme-icon-wrap" aria-hidden="true">
+              <svg class="icon-sun" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32 1.41-1.41"/>
+              </svg>
+              <svg class="icon-moon" viewBox="0 0 24 24">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            </span>
+          </button>
+
+          <button class="round" id="notice" type="button" aria-label="Ringkasan pengingat">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <i id="noticeDot"></i>
+          </button>
+
+          <div class="account">
+            <button id="accountButton" type="button" aria-haspopup="menu" aria-expanded="false">
+              <span class="avatar" id="headerAvatar">AM</span>
+              <span class="account-meta">
+                <b id="headerUserName">Abil Mahendra</b>
+                <small id="headerWorkspace">Ruang Pribadi</small>
+              </span>
+              <svg class="account-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="account-menu" id="accountMenu" role="menu">
+              <div class="account-menu-head">
+                <span class="avatar" id="menuAvatar">AM</span>
+                <p>
+                  <b id="menuUserName">Abil Mahendra</b>
+                  <small id="menuUserEmail">abil@example.com</small>
+                </p>
+              </div>
+              <button data-view="settings" type="button" role="menuitem">Pengaturan &amp; Preferensi</button>
+              <button id="exportDataMenu" type="button" role="menuitem">Ekspor cadangan JSON</button>
+              <button id="importDataMenu" type="button" role="menuitem">Impor cadangan JSON</button>
+              <button id="clearAllDataMenu" type="button" role="menuitem">Mulai dari kosong</button>
+              <button id="logout" type="button" role="menuitem">Reset ke data contoh</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- VIEW: DASHBOARD -->
+      <section class="view active" id="dashboardView">
+        <div class="heading">
+          <div>
+            <p class="eyebrow" id="dateLabel">HARI INI</p>
+            <h1 id="greetingTitle">Selamat pagi, Abil.</h1>
+            <p id="greetingSub">Berikut gambaran hari Anda. Mulai dari yang paling penting.</p>
+          </div>
+          <div class="heading-actions">
+            <div class="date-stepper" role="group" aria-label="Navigasi tanggal">
+              <button class="step-btn" id="prevDay" type="button" aria-label="Hari sebelumnya" title="Hari sebelumnya">←</button>
+              <button class="step-today" id="today" type="button">Hari ini</button>
+              <button class="step-btn" id="nextDay" type="button" aria-label="Hari berikutnya" title="Hari berikutnya">→</button>
+            </div>
+            <button class="button primary" id="add" type="button">+ Tambah baru</button>
+          </div>
+        </div>
+
+        <div class="metrics">
+          <article>
+            <small>TUGAS HARI INI</small>
+            <strong id="taskMetric">0</strong>
+            <p id="taskNote">0 selesai</p>
+          </article>
+          <article>
+            <small>JADWAL BERIKUTNYA</small>
+            <strong id="eventMetric">—</strong>
+            <p id="eventNote">Tidak ada agenda</p>
+          </article>
+          <article>
+            <small>PROGRES MINGGU INI</small>
+            <strong id="weekMetric">0%</strong>
+            <i class="progress"><b id="weekBar"></b></i>
+          </article>
+          <article class="focus-metric">
+            <small>WAKTU FOKUS</small>
+            <strong id="focusMetric">0j 00m</strong>
+            <button id="goFocus" type="button">Mulai sesi fokus →</button>
+          </article>
+        </div>
+
+        <div class="grid">
+          <article class="card schedule">
+            <div class="card-head">
+              <div>
+                <h2>Jadwal harian</h2>
+                <p id="scheduleLabel">Agenda untuk hari ini</p>
+              </div>
+              <div class="card-head-actions">
+                <span class="live-clock" id="liveClock" title="Waktu lokal saat ini"></span>
+                <button data-view="calendar" type="button">Buka kalender →</button>
+              </div>
+            </div>
+            <div id="timeline" class="timeline"></div>
+            <button class="add-row" id="addEvent" type="button">+ Tambah kegiatan ke jadwal</button>
+          </article>
+
+          <div class="right">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <h2>Prioritas utama</h2>
+                  <p>Tiga tugas terpenting yang belum selesai</p>
+                </div>
+                <button data-view="tasks" type="button">Semua tugas →</button>
+              </div>
+              <div id="priorities"></div>
+            </article>
+
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <h2>Kebiasaan hari ini</h2>
+                  <p id="habitNote">0 dari 0 selesai</p>
+                </div>
+                <button data-view="habits" type="button">Kelola →</button>
+              </div>
+              <div class="habits" id="habits"></div>
+            </article>
+          </div>
+        </div>
+
+        <div class="bottom">
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <h2>Proyek aktif</h2>
+                <p>Progres dihitung otomatis dari penyelesaian tugas</p>
+              </div>
+              <button data-view="projects" type="button">Lihat papan →</button>
+            </div>
+            <div id="projects"></div>
+          </article>
+
+          <article class="card notes">
+            <div class="card-head">
+              <div>
+                <h2>Catatan cepat</h2>
+                <p>Tersimpan otomatis di perangkat ini</p>
+              </div>
+              <small id="noteSaved">Tersimpan</small>
+            </div>
+            <textarea id="quickNote" placeholder="Tulis ide, pengingat rapat, atau hal penting yang tidak ingin terlupa…"></textarea>
+          </article>
+        </div>
+      </section>
+
+      <!-- VIEW: CALENDAR -->
+      <section class="view" id="calendarView">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">PERENCANAAN</p>
+            <h1>Kalender</h1>
+            <p>Atur kegiatan bulanan dan klik tanggal untuk melihat atau menambah jadwal.</p>
+          </div>
+          <div class="heading-actions">
+            <button class="button ghost" id="calendarToday" type="button">Bulan ini</button>
+            <button class="button primary" id="calendarAdd" type="button">+ Kegiatan</button>
+          </div>
+        </div>
+        <article class="card calendar">
+          <div class="calendar-tools">
+            <button id="prevMonth" type="button" aria-label="Bulan sebelumnya">←</button>
+            <h2 id="calendarTitle"></h2>
+            <button id="nextMonth" type="button" aria-label="Bulan berikutnya">→</button>
+            <span class="calendar-hint">Klik tanggal untuk membuka agenda hari tersebut</span>
+          </div>
+          <div class="weekdays" id="calendarWeekdays"></div>
+          <div id="calendarDays" class="calendar-days"></div>
+        </article>
+      </section>
+
+      <!-- VIEW: TASKS -->
+      <section class="view" id="tasksView">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">EKSEKUSI</p>
+            <h1>Tugas saya</h1>
+            <p>Satu daftar terstruktur untuk seluruh pekerjaan Anda. Klik judul tugas untuk mengubah detail.</p>
+          </div>
+          <button class="button primary" id="taskAdd" type="button">+ Tambah tugas</button>
+        </div>
+        <article class="card task-space">
+          <div class="task-tools">
+            <div id="filters" class="filter-pills" role="tablist" aria-label="Filter status tugas">
+              <button class="active" data-filter="all" type="button">Semua</button>
+              <button data-filter="open" type="button">Belum selesai</button>
+              <button data-filter="today" type="button">Hari ini</button>
+              <button data-filter="done" type="button">Selesai</button>
+            </div>
+            <div class="task-tools-right">
+              <input type="search" id="taskSearchInput" class="task-search-input" placeholder="Cari nama tugas atau proyek…" aria-label="Cari tugas">
+              <select id="priorityFilter" aria-label="Filter prioritas">
+                <option value="all">Semua prioritas</option>
+                <option value="Tinggi">Prioritas Tinggi</option>
+                <option value="Sedang">Prioritas Sedang</option>
+                <option value="Rendah">Prioritas Rendah</option>
+              </select>
+            </div>
+          </div>
+          <div id="taskList"></div>
+        </article>
+      </section>
+
+      <!-- VIEW: PROJECTS -->
+      <section class="view" id="projectsView">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">ORGANISASI</p>
+            <h1>Proyek</h1>
+            <p>Kelompokkan pekerjaan ke dalam proyek. Klik kartu proyek untuk mengubah status atau detail.</p>
+          </div>
+          <button class="button primary" id="projectAdd" type="button">+ Proyek baru</button>
+        </div>
+        <div class="board" id="board"></div>
+      </section>
+
+      <!-- VIEW: HABITS -->
+      <section class="view" id="habitsView">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">KONSISTENSI</p>
+            <h1>Kebiasaan</h1>
+            <p>Rutinitas harian yang tercatat per tanggal beserta rentetan (*streak*) konsistensi Anda.</p>
+          </div>
+          <button class="button primary" id="habitAdd" type="button">+ Kebiasaan baru</button>
+        </div>
+        <article class="card list" id="habitManager"></article>
+      </section>
+
+      <!-- VIEW: FOCUS -->
+      <section class="view" id="focusView">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">RUANG TENANG</p>
+            <h1>Mode fokus</h1>
+            <p>Pilih satu tugas prioritas, atur durasi sesi, dan bekerja tanpa gangguan.</p>
+          </div>
+        </div>
+        <article class="focus-room" id="focusRoom">
+          <div class="focus-presets" role="group" aria-label="Durasi sesi fokus">
+            <button class="active" data-minutes="25" type="button">Fokus · 25m</button>
+            <button data-minutes="50" type="button">Kerja Mendalam · 50m</button>
+            <button data-minutes="5" type="button">Istirahat · 5m</button>
+          </div>
+
+          <div class="timer-ring-wrap">
+            <svg class="timer-ring" viewBox="0 0 220 220" aria-hidden="true">
+              <circle class="timer-ring-track" cx="110" cy="110" r="98"/>
+              <circle class="timer-ring-progress" id="timerRingProgress" cx="110" cy="110" r="98"/>
+            </svg>
+            <div class="timer-display">
+              <small id="focusState">SIAP MEMULAI</small>
+              <strong id="timer">25:00</strong>
+            </div>
+          </div>
+
+          <p class="focus-caption">Pilih tugas yang sedang dikerjakan pada sesi ini:</p>
+          <label class="sr-only" for="focusSelect">Pilih tugas fokus</label>
+          <select id="focusSelect"></select>
+
+          <div class="focus-controls">
+            <button class="button ghost" id="focusReset" type="button">Atur ulang</button>
+            <button class="button primary" id="focusButton" type="button">Mulai fokus</button>
+          </div>
+        </article>
+      </section>
+
+      <!-- VIEW: INSIGHTS -->
+      <section class="view" id="insightsView">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">REFLEKSI</p>
+            <h1>Wawasan</h1>
+            <p>Ringkasan produktivitas, aktivitas 7 hari terakhir, dan distribusi waktu Anda.</p>
+          </div>
+        </div>
+        <article class="card insight" id="insights"></article>
+
+        <article class="card weekly-chart-card">
+          <div class="card-head">
+            <div>
+              <h2>Aktivitas 7 hari terakhir</h2>
+              <p>Jumlah kegiatan terjadwal dan tugas yang jatuh tempo per hari</p>
+            </div>
+          </div>
+          <div id="weeklyChart" class="weekly-chart"></div>
+        </article>
+
+        <div class="insights-grid">
+          <article class="card insight-panel">
+            <div class="card-head">
+              <div>
+                <h2>Distribusi kategori jadwal</h2>
+                <p>Alokasi waktu kegiatan berdasarkan kategori</p>
+              </div>
+            </div>
+            <div id="categoryBreakdown" class="breakdown-list"></div>
+          </article>
+          <article class="card insight-panel">
+            <div class="card-head">
+              <div>
+                <h2>Penyelesaian tugas per prioritas</h2>
+                <p>Perbandingan tugas selesai dan belum selesai</p>
+              </div>
+            </div>
+            <div id="priorityBreakdown" class="breakdown-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- VIEW: SETTINGS (4 GROUPS + TOGGLE SWITCHES) -->
+      <section class="view" id="settingsView">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">PREFERENSI</p>
+            <h1>Pengaturan</h1>
+            <p>Sesuaikan tampilan, format jadwal, pengingat, dan kelola penyimpanan aplikasi.</p>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <!-- 1. Preferensi tampilan -->
+          <article class="card settings-card">
+            <div class="settings-card-head">
+              <h2>1. Preferensi tampilan</h2>
+              <p>Sesuaikan tema aplikasi, kenyamanan mata, warna aksen, dan kalender.</p>
+            </div>
+            <div class="settings-rows">
+              <label class="setting-row" for="settingsThemeToggle">
+                <div class="setting-info">
+                  <b>Tampilan gelap</b>
+                  <small>Gunakan tema gelap aplikasi (nonaktifkan untuk mode terang yang teduh)</small>
+                </div>
+                <span class="switch">
+                  <input type="checkbox" id="settingsThemeToggle">
+                  <span class="switch-slider"></span>
+                </span>
+              </label>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <b>Kenyamanan mata (Mode terang)</b>
+                  <small>Atur kelembutan kontras permukaan agar tidak menyilaukan mata</small>
+                </div>
+                <select id="settingLightSoftness" aria-label="Kelembutan mode terang">
+                  <option value="soft">Teduh / Lembut (Direkomendasikan)</option>
+                  <option value="warm">Hangat Redup</option>
+                  <option value="crisp">Standar Bersih</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <b>Warna aksen</b>
+                  <small>Pilih nuansa warna utama untuk tombol dan penanda aktif</small>
+                </div>
+                <div class="accent-picker" id="accentPicker" role="radiogroup" aria-label="Warna aksen">
+                  <button type="button" class="accent-swatch active" data-accent="emerald" title="Emerald" aria-label="Emerald"></button>
+                  <button type="button" class="accent-swatch" data-accent="teal" title="Teal" aria-label="Teal"></button>
+                  <button type="button" class="accent-swatch" data-accent="forest" title="Forest" aria-label="Forest"></button>
+                  <button type="button" class="accent-swatch" data-accent="lime" title="Olive Lime" aria-label="Olive Lime"></button>
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <b>Tampilan kalender</b>
+                  <small>Ukuran baris tanggal pada halaman kalender</small>
+                </div>
+                <select id="settingCalendarDensity" aria-label="Tampilan kalender">
+                  <option value="standard">Standar</option>
+                  <option value="compact">Ringkas (Kompak)</option>
+                </select>
+              </div>
+            </div>
+          </article>
+
+          <!-- 2. Pengaturan jadwal -->
+          <article class="card settings-card">
+            <div class="settings-card-head">
+              <h2>2. Pengaturan jadwal</h2>
+              <p>Atur urutan hari kalender, format jam, dan durasi kegiatan.</p>
+            </div>
+            <div class="settings-rows">
+              <label class="setting-row" for="settingStartMonday">
+                <div class="setting-info">
+                  <b>Mulai minggu pada hari Senin</b>
+                  <small>Jika dinonaktifkan, kalender dimulai dari hari Minggu</small>
+                </div>
+                <span class="switch">
+                  <input type="checkbox" id="settingStartMonday" checked>
+                  <span class="switch-slider"></span>
+                </span>
+              </label>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <b>Format waktu</b>
+                  <small>Gunakan format 24 jam (14:30) atau 12 jam (02:30 PM)</small>
+                </div>
+                <select id="settingTimeFormat" aria-label="Format waktu">
+                  <option value="24h">24 jam (14:30)</option>
+                  <option value="12h">12 jam (02:30 PM)</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <b>Durasi default kegiatan</b>
+                  <small>Otomatis mengisi waktu selesai saat menambah jadwal baru</small>
+                </div>
+                <select id="settingDefaultDuration" aria-label="Durasi default kegiatan">
+                  <option value="30">30 menit</option>
+                  <option value="45">45 menit</option>
+                  <option value="60" selected>60 menit</option>
+                  <option value="90">90 menit</option>
+                </select>
+              </div>
+            </div>
+          </article>
+
+          <!-- 3. Notifikasi -->
+          <article class="card settings-card">
+            <div class="settings-card-head">
+              <h2>3. Notifikasi &amp; Suara</h2>
+              <p>Kelola pengingat kegiatan, batas waktu tugas, dan izin notifikasi sistem.</p>
+            </div>
+            <div class="settings-rows">
+              <label class="setting-row" for="settingRemindSchedule">
+                <div class="setting-info">
+                  <b>Pengingat jadwal</b>
+                  <small>Beri tahu saat waktu kegiatan tiba</small>
+                </div>
+                <span class="switch">
+                  <input type="checkbox" id="settingRemindSchedule" checked>
+                  <span class="switch-slider"></span>
+                </span>
+              </label>
+
+              <label class="setting-row" for="settingRemindDeadline">
+                <div class="setting-info">
+                  <b>Pengingat deadline tugas</b>
+                  <small>Tampilkan penanda tugas yang jatuh tempo pada hari ini</small>
+                </div>
+                <span class="switch">
+                  <input type="checkbox" id="settingRemindDeadline" checked>
+                  <span class="switch-slider"></span>
+                </span>
+              </label>
+
+              <label class="setting-row" for="settingSoundEffects">
+                <div class="setting-info">
+                  <b>Nada dering lembut (Sesi Fokus &amp; Pengingat)</b>
+                  <small>Mainkan bunyi lonceng halus saat timer fokus selesai</small>
+                </div>
+                <span class="switch">
+                  <input type="checkbox" id="settingSoundEffects" checked>
+                  <span class="switch-slider"></span>
+                </span>
+              </label>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <b>Izin notifikasi browser</b>
+                  <small id="notifPermissionStatus">Aktifkan agar pengingat muncul di desktop/HP Anda</small>
+                </div>
+                <button type="button" class="button ghost" id="requestNotifBtn">Aktifkan &amp; Tes</button>
+              </div>
+            </div>
+          </article>
+
+          <!-- 4. Akun & Penyimpanan Data -->
+          <article class="card settings-card">
+            <div class="settings-card-head">
+              <h2>4. Akun &amp; Manajemen Data</h2>
+              <p>Identitas profil serta cadangan (Ekspor/Impor) data lokal di perangkat ini.</p>
+            </div>
+            <form id="accountSettingsForm" class="settings-form">
+              <div class="form-grid">
+                <label class="field">
+                  <span>Nama pengguna</span>
+                  <input type="text" id="settingUserName" required placeholder="Nama Anda">
+                </label>
+                <label class="field">
+                  <span>Email</span>
+                  <input type="email" id="settingUserEmail" placeholder="nama@email.com">
+                </label>
+                <label class="field">
+                  <span>Inisial foto profil</span>
+                  <input type="text" id="settingUserAvatar" maxlength="3" placeholder="AM">
+                </label>
+                <label class="field">
+                  <span>Nama ruang kerja (Workspace)</span>
+                  <input type="text" id="settingWorkspace" placeholder="Ruang Pribadi">
+                </label>
+              </div>
+              <div class="settings-form-actions">
+                <button type="button" class="button danger-ghost" id="clearAllDataBtn" title="Hapus contoh data dan mulai dari kosong">Mulai Kosong</button>
+                <button type="button" class="button ghost" id="importDataBtn">Impor JSON</button>
+                <button type="button" class="button ghost" id="exportDataBtn">Ekspor JSON</button>
+                <button type="submit" class="button primary">Simpan profil</button>
+              </div>
+              <input type="file" id="importFileInput" accept=".json,application/json" hidden>
+            </form>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL: ADD / EDIT ITEM (EVENT, TASK, PROJECT, HABIT) -->
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <section class="modal">
+      <header>
+        <div>
+          <p class="eyebrow" id="modalEyebrow">ITEM BARU</p>
+          <h2 id="modalTitle">Tambah kegiatan</h2>
+        </div>
+        <button id="close" type="button" aria-label="Tutup dialog">×</button>
+      </header>
+      <div class="modal-tabs" id="modalTabs">
+        <button class="active" data-type="event" type="button">Kegiatan</button>
+        <button data-type="task" type="button">Tugas</button>
+        <button data-type="project" type="button">Proyek</button>
+        <button data-type="habit" type="button">Kebiasaan</button>
+      </div>
+      <form id="form">
+        <div class="form-grid" id="fields"></div>
+        <footer class="modal-footer">
+          <button type="button" class="button danger-ghost" id="deleteItemBtn" hidden>Hapus</button>
+          <div class="modal-footer-right">
+            <button type="button" class="button ghost" id="cancel">Batal</button>
+            <button type="submit" class="button primary">Simpan</button>
+          </div>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <!-- COMMAND PALETTE (CTRL+K) -->
+  <div class="overlay command" id="command" role="dialog" aria-modal="true" aria-label="Pencarian cepat dan perintah">
+    <div class="command-box">
+      <div class="command-input-wrap">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="commandInput" type="text" placeholder="Ketik untuk mencari jadwal, tugas, proyek, atau pilih perintah…" autocomplete="off">
+        <kbd>Esc</kbd>
+      </div>
+      <section id="commandResults" class="command-results"></section>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "Ruang Waktu — Jadwal & Tugas Pribadi",
+  "short_name": "Ruang Waktu",
+  "description": "Aplikasi pribadi untuk merencanakan jadwal harian, tugas, kebiasaan, dan sesi fokus.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#E6EEE9",
+  "theme_color": "#0D9468",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
