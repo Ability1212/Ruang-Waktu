@@ -17,18 +17,39 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Ruang Waktu — Jadwal & Tugas Pribadi',
+  title: 'Ruang Waktu — Manajemen Proyek, Helpdesk Tiket & QA Tim',
   description:
-    'Ruang Waktu adalah aplikasi pribadi berbasis Next.js dan Supabase untuk merencanakan jadwal, tugas, kebiasaan, dan sesi fokus.',
+    'Ruang Waktu adalah aplikasi manajemen proyek, tugas tim, helpdesk tiket klien, dan pengujian QA berbasis Next.js dan Supabase.',
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/icon.svg',
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' }
+    ],
+    shortcut: '/icon.svg',
     apple: '/icon.svg'
   },
   openGraph: {
-    title: 'Ruang Waktu — Jadwal & Tugas Pribadi',
-    description: 'Atur jadwal, tugas, kebiasaan, dan fokus dalam satu ruang kerja pribadi.',
-    type: 'website'
+    title: 'Ruang Waktu — Manajemen Proyek, Helpdesk Tiket & QA Tim',
+    description:
+      'Kelola proyek, tiket komplain klien, penugasan tim, dan skenario pengujian QA dalam satu ruang kerja terpadu.',
+    type: 'website',
+    locale: 'id_ID',
+    siteName: 'Ruang Waktu',
+    images: [
+      {
+        url: '/og-image.svg',
+        width: 1200,
+        height: 630,
+        alt: 'Ruang Waktu — Manajemen Proyek, Helpdesk Tiket & QA Tim'
+      }
+    ]
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Ruang Waktu — Manajemen Proyek, Helpdesk Tiket & QA Tim',
+    description:
+      'Kelola proyek, tiket komplain klien, penugasan tim, dan skenario pengujian QA dalam satu ruang kerja terpadu.',
+    images: ['/og-image.svg']
   }
 };
 
@@ -51,4 +72,3 @@ export default function RootLayout({
     </html>
   );
 }
-

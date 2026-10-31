@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#E6EEE9"/>
+  <rect x="48" y="48" width="1104" height="534" rx="28" fill="#F4F7F5" stroke="#B7C4BC" stroke-width="2"/>
+  <rect x="96" y="100" width="64" height="64" rx="16" fill="#0F5257"/>
+  <text x="128" y="140" text-anchor="middle" fill="#F8FAF9" font-family="monospace" font-size="24" font-weight="700">RW</text>
+  <text x="180" y="142" fill="#141A17" font-family="sans-serif" font-size="32" font-weight="700">Ruang Waktu</text>
+  <text x="96" y="246" fill="#141A17" font-family="sans-serif" font-size="48" font-weight="800">Manajemen Proyek, Tiket &amp; QA Tim</text>
+  <text x="96" y="310" fill="#3D4741" font-family="sans-serif" font-size="24" font-weight="500">Alur kerja terpadu: Tiket Klien → Tugas Tim → Test Case QA → Kesiapan Rilis</text>
+  <g transform="translate(96, 380)">
+    <rect width="230" height="110" rx="16" fill="#E6EEE9" stroke="#B7C4BC"/>
+    <text x="24" y="42" fill="#3D4741" font-family="monospace" font-size="16" font-weight="600">01 · HELPDESK</text>
+    <text x="24" y="78" fill="#141A17" font-family="sans-serif" font-size="22" font-weight="700">Tiket &amp; SLA</text>
+  </g>
+  <g transform="translate(350, 380)">
+    <rect width="230" height="110" rx="16" fill="#E6EEE9" stroke="#B7C4BC"/>
+    <text x="24" y="42" fill="#3D4741" font-family="monospace" font-size="16" font-weight="600">02 · EKSEKUSI</text>
+    <text x="24" y="78" fill="#141A17" font-family="sans-serif" font-size="22" font-weight="700">Tugas Tim</text>
+  </g>
+  <g transform="translate(604, 380)">
+    <rect width="230" height="110" rx="16" fill="#E6EEE9" stroke="#B7C4BC"/>
+    <text x="24" y="42" fill="#3D4741" font-family="monospace" font-size="16" font-weight="600">03 · PENGUJIAN</text>
+    <text x="24" y="78" fill="#141A17" font-family="sans-serif" font-size="22" font-weight="700">Test Case QA</text>
+  </g>
+  <g transform="translate(858, 380)">
+    <rect width="246" height="110" rx="16" fill="#0F5257"/>
+    <text x="24" y="42" fill="#D1FAE5" font-family="monospace" font-size="16" font-weight="600">04 · KEPUTUSAN</text>
+    <text x="24" y="78" fill="#FFFFFF" font-family="sans-serif" font-size="22" font-weight="700">Kesiapan Rilis</text>
+  </g>
+</svg>
+

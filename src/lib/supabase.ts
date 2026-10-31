@@ -1,8 +1,18 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { AppState, UserPrefs } from '@/types/ruang-waktu';
+import type { AppState, TicketStatus, UserPrefs } from '@/types/ruang-waktu';
 
 let cachedClient: SupabaseClient | null = null;
 let cachedKey = '';
+
+const sanitizeText = (val?: string) => (val || '').replace(/эк/g, 'ek');
+
+const normalizeTicketStatus = (status?: string): TicketStatus => {
+  if (status === 'Closed' || status === 'Ditutup') return 'Ditutup';
+  if (status === 'Terverifikasi') return 'Terverifikasi';
+  if (status === 'Diperbaiki') return 'Diperbaiki';
+  if (status === 'Investigasi') return 'Investigasi';
+  return 'Open';
+};
 
 export function getSupabaseConfig(prefs?: Partial<UserPrefs>) {
   const url = (prefs?.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
@@ -51,67 +61,74 @@ export async function pullStateFromSupabase(
   return {
     events: (eventsRes.data || []).map((r) => ({
       id: r.id,
-      title: r.title,
+      title: sanitizeText(r.title),
       date: r.date,
       startTime: r.start_time || '',
       endTime: r.end_time || '',
       category: r.category || 'Rapat',
-      notes: r.notes || ''
+      notes: sanitizeText(r.notes)
     })),
     tasks: (tasksRes.data || []).map((r) => ({
       id: r.id,
-      title: r.title,
+      title: sanitizeText(r.title),
       dueDate: r.due_date || '',
       priority: r.priority || 'Sedang',
       project: r.project || 'Umum',
       assignee: r.assignee || 'Belum ditugaskan',
       assigneeRole: r.assignee_role || 'Engineer',
       status: r.status || (r.completed ? 'Done' : 'Todo'),
-      notes: r.notes || '',
-      completed: Boolean(r.completed)
+      notes: sanitizeText(r.notes),
+      completed: Boolean(r.completed),
+      ticketCode: r.ticket_code || undefined,
+      testCaseCode: r.test_case_code || undefined
     })),
     projects: (projectsRes.data || []).map((r) => ({
       id: r.id,
-      name: r.name,
-      clientName: r.client_name || '',
+      name: sanitizeText(r.name),
+      clientName: sanitizeText(r.client_name),
       lead: r.lead || '',
       deadline: r.deadline || '',
       status: r.status || 'Berjalan',
-      notes: r.notes || ''
+      notes: sanitizeText(r.notes)
     })),
     tickets: (ticketsRes.data || []).map((r) => ({
       id: r.id,
-      code: r.code || 'TKT-01',
-      title: r.title,
-      clientName: r.client_name || 'Klien',
+      code: r.code || 'TKT-101',
+      title: sanitizeText(r.title),
+      clientName: sanitizeText(r.client_name) || 'Klien',
       project: r.project || 'Umum',
       category: r.category || 'Komplain',
       severity: r.severity || 'Tinggi',
-      status: r.status || 'Open',
+      status: normalizeTicketStatus(r.status),
       assignee: r.assignee || 'Belum ditugaskan',
       createdAt: r.created_at_date || '',
-      description: r.description || ''
+      slaDeadline: r.sla_deadline || undefined,
+      linkedTaskId: r.linked_task_id || undefined,
+      linkedTestCaseCode: r.linked_test_case_code || undefined,
+      description: sanitizeText(r.description)
     })),
     scenarios: (scenariosRes.data || []).map((r) => ({
       id: r.id,
       code: r.code || 'TS-01',
-      title: r.title,
+      title: sanitizeText(r.title),
       project: r.project || 'Umum',
       moduleName: r.module_name || 'Umum',
-      description: r.description || ''
+      description: sanitizeText(r.description)
     })),
     testCases: (testCasesRes.data || []).map((r) => ({
       id: r.id,
       scenarioId: r.scenario_id,
-      code: r.code || 'TC-01',
-      title: r.title,
-      precondition: r.precondition || '',
-      steps: r.steps || '',
-      expectedResult: r.expected_result || '',
-      actualResult: r.actual_result || '',
+      code: r.code || 'TC-001',
+      title: sanitizeText(r.title),
+      precondition: sanitizeText(r.precondition),
+      steps: sanitizeText(r.steps),
+      expectedResult: sanitizeText(r.expected_result),
+      actualResult: sanitizeText(r.actual_result),
       status: r.status || 'Pending',
       tester: r.tester || 'QA Tester',
-      priority: r.priority || 'Sedang'
+      priority: r.priority || 'Sedang',
+      linkedTicketCode: r.linked_ticket_code || undefined,
+      linkedTaskId: r.linked_task_id || undefined
     })),
     notifications: fallbackNotifications
   };
@@ -144,7 +161,9 @@ export async function pushStateToSupabase(client: SupabaseClient, state: AppStat
         assignee_role: t.assigneeRole || '',
         status: t.status || 'Todo',
         notes: t.notes || '',
-        completed: Boolean(t.completed)
+        completed: Boolean(t.completed),
+        ticket_code: t.ticketCode || '',
+        test_case_code: t.testCaseCode || ''
       }))
     );
   }
@@ -162,6 +181,9 @@ export async function pushStateToSupabase(client: SupabaseClient, state: AppStat
         status: tk.status,
         assignee: tk.assignee,
         created_at_date: tk.createdAt,
+        sla_deadline: tk.slaDeadline || '',
+        linked_task_id: tk.linkedTaskId || '',
+        linked_test_case_code: tk.linkedTestCaseCode || '',
         description: tk.description || ''
       }))
     );
@@ -193,7 +215,9 @@ export async function pushStateToSupabase(client: SupabaseClient, state: AppStat
         actual_result: tc.actualResult || '',
         status: tc.status,
         tester: tc.tester,
-        priority: tc.priority
+        priority: tc.priority,
+        linked_ticket_code: tc.linkedTicketCode || '',
+        linked_task_id: tc.linkedTaskId || ''
       }))
     );
   }

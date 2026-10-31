@@ -1,11 +1,11 @@
 {
-  "name": "Ruang Waktu — Jadwal & Tugas Pribadi",
+  "name": "Ruang Waktu — Manajemen Proyek, Helpdesk Tiket & QA Tim",
   "short_name": "Ruang Waktu",
-  "description": "Aplikasi pribadi untuk merencanakan jadwal harian, tugas, kebiasaan, dan sesi fokus.",
+  "description": "Aplikasi manajemen proyek, tugas tim, helpdesk tiket klien, dan skenario pengujian QA.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#E6EEE9",
-  "theme_color": "#0D9468",
+  "theme_color": "#0F5257",
   "lang": "id",
   "icons": [
     {
@@ -16,4 +16,3 @@
     }
   ]
 }
-

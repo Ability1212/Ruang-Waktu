@@ -1,7 +1,7 @@
 export type PriorityLevel = 'Kritis' | 'Tinggi' | 'Sedang' | 'Rendah';
 export type ProjectStatus = 'Berjalan' | 'Review QA' | 'Selesai';
 export type TaskStatus = 'Todo' | 'In Progress' | 'In Review' | 'Done';
-export type TicketStatus = 'Open' | 'Investigasi' | 'Diperbaiki' | 'Closed';
+export type TicketStatus = 'Open' | 'Investigasi' | 'Diperbaiki' | 'Terverifikasi' | 'Ditutup';
 export type TicketCategory = 'Komplain' | 'Bug' | 'Revisi' | 'Permintaan Fitur';
 export type TestResultStatus = 'Pass' | 'Fail' | 'Blocked' | 'Pending';
 export type SubscriptionPlan = 'Starter' | 'Pro' | 'Enterprise';
@@ -43,6 +43,8 @@ export interface TaskItem {
   status: TaskStatus;
   notes?: string;
   completed: boolean;
+  ticketCode?: string; // e.g. TKT-101 (tautan ke tiket asal)
+  testCaseCode?: string; // e.g. TC-002 (tautan ke test case QA)
 }
 
 export interface ProjectItem {
@@ -66,6 +68,10 @@ export interface ClientTicket {
   status: TicketStatus;
   assignee: string;
   createdAt: string; // YYYY-MM-DD
+  slaDeadline?: string; // YYYY-MM-DD HH:mm atau target SLA
+  slaStatus?: 'Aman' | 'Mendekati SLA' | 'Lewat SLA' | 'Selesai';
+  linkedTaskId?: string;
+  linkedTestCaseCode?: string;
   description?: string;
 }
 
@@ -90,6 +96,8 @@ export interface TestCase {
   status: TestResultStatus;
   tester: string;
   priority: PriorityLevel;
+  linkedTicketCode?: string; // e.g. TKT-101
+  linkedTaskId?: string;
 }
 
 export interface AppNotification {
@@ -97,7 +105,7 @@ export interface AppNotification {
   title: string;
   description: string;
   time: string;
-  category: 'ticket' | 'task' | 'qa' | 'system';
+  category: 'ticket' | 'task' | 'qa' | 'system' | 'sla';
   read: boolean;
   targetView?: ViewName;
 }
@@ -130,6 +138,7 @@ export interface UserPrefs {
   userPhotoUrl?: string;
   workspace: string;
   plan: SubscriptionPlan;
+  isAuthenticated?: boolean;
   supabaseUrl?: string;
   supabaseAnonKey?: string;
 }

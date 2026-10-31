@@ -8,7 +8,7 @@ create extension if not exists "pgcrypto";
 -- 1. TABEL PROJECTS (PROYEK & KLIEN)
 create table if not exists public.projects (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
   name text not null,
   client_name text default '',
   lead text default '',
@@ -18,10 +18,10 @@ create table if not exists public.projects (
   created_at timestamptz not null default now()
 );
 
--- 2. TABEL TASKS (TUGAS KARYAWAN PER PROYEK)
+-- 2. TABEL TASKS (TUGAS TIM PER PROYEK + TAUTAN TIKET & TEST CASE)
 create table if not exists public.tasks (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
   title text not null,
   due_date text default '',
   priority text not null default 'Sedang',
@@ -31,14 +31,17 @@ create table if not exists public.tasks (
   status text not null default 'Todo',
   notes text default '',
   completed boolean not null default false,
+  ticket_code text default '',
+  test_case_code text default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
--- 3. TABEL TICKETS (TIKET KOMPLAIN & BUG DARI KLIEN)
+-- 3. TABEL TICKETS (TIKET KOMPLAIN & BUG DARI KLIEN + SLA & TAUTAN)
+-- Alur status: Open -> Investigasi -> Diperbaiki -> Terverifikasi -> Ditutup
 create table if not exists public.tickets (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
   code text not null,
   title text not null,
   client_name text not null,
@@ -48,6 +51,9 @@ create table if not exists public.tickets (
   status text not null default 'Open',
   assignee text default '',
   created_at_date text not null,
+  sla_deadline text default '',
+  linked_task_id text default '',
+  linked_test_case_code text default '',
   description text default '',
   created_at timestamptz not null default now()
 );
@@ -55,7 +61,7 @@ create table if not exists public.tickets (
 -- 4. TABEL TEST SCENARIOS (SKENARIO PENGUJIAN QA)
 create table if not exists public.test_scenarios (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
   code text not null,
   title text not null,
   project text not null,
@@ -64,10 +70,10 @@ create table if not exists public.test_scenarios (
   created_at timestamptz not null default now()
 );
 
--- 5. TABEL TEST CASES (DETAIL LANGKAH PENGUJIAN QA)
+-- 5. TABEL TEST CASES (DETAIL LANGKAH PENGUJIAN QA + TAUTAN TIKET & TUGAS)
 create table if not exists public.test_cases (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
   scenario_id text not null,
   code text not null,
   title text not null,
@@ -78,13 +84,15 @@ create table if not exists public.test_cases (
   status text not null default 'Pending',
   tester text default '',
   priority text not null default 'Sedang',
+  linked_ticket_code text default '',
+  linked_task_id text default '',
   created_at timestamptz not null default now()
 );
 
 -- 6. TABEL EVENTS (JADWAL SPRINT / RILIS / RAPAT)
 create table if not exists public.events (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
   title text not null,
   date text not null,
   start_time text default '',
@@ -94,7 +102,7 @@ create table if not exists public.events (
   created_at timestamptz not null default now()
 );
 
--- AKTIFKAN ROW LEVEL SECURITY (RLS)
+-- AKTIFKAN ROW LEVEL SECURITY (RLS) UNTUK PRIVASI DATA KLIEN
 alter table public.projects enable row level security;
 alter table public.tasks enable row level security;
 alter table public.tickets enable row level security;
@@ -102,9 +110,39 @@ alter table public.test_scenarios enable row level security;
 alter table public.test_cases enable row level security;
 alter table public.events enable row level security;
 
-create policy "Allow all access to projects" on public.projects for all using (true) with check (true);
-create policy "Allow all access to tasks" on public.tasks for all using (true) with check (true);
-create policy "Allow all access to tickets" on public.tickets for all using (true) with check (true);
-create policy "Allow all access to test_scenarios" on public.test_scenarios for all using (true) with check (true);
-create policy "Allow all access to test_cases" on public.test_cases for all using (true) with check (true);
-create policy "Allow all access to events" on public.events for all using (true) with check (true);
+-- Kebijakan RLS: Hanya pengguna terautentikasi yang memiliki akses ke datanya sendiri
+create policy "Authenticated users manage own projects"
+  on public.projects for all
+  to authenticated
+  using (auth.uid() = user_id or user_id is null)
+  with check (auth.uid() = user_id or user_id is null);
+
+create policy "Authenticated users manage own tasks"
+  on public.tasks for all
+  to authenticated
+  using (auth.uid() = user_id or user_id is null)
+  with check (auth.uid() = user_id or user_id is null);
+
+create policy "Authenticated users manage own tickets"
+  on public.tickets for all
+  to authenticated
+  using (auth.uid() = user_id or user_id is null)
+  with check (auth.uid() = user_id or user_id is null);
+
+create policy "Authenticated users manage own test_scenarios"
+  on public.test_scenarios for all
+  to authenticated
+  using (auth.uid() = user_id or user_id is null)
+  with check (auth.uid() = user_id or user_id is null);
+
+create policy "Authenticated users manage own test_cases"
+  on public.test_cases for all
+  to authenticated
+  using (auth.uid() = user_id or user_id is null)
+  with check (auth.uid() = user_id or user_id is null);
+
+create policy "Authenticated users manage own events"
+  on public.events for all
+  to authenticated
+  using (auth.uid() = user_id or user_id is null)
+  with check (auth.uid() = user_id or user_id is null);
