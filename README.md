@@ -1,32 +1,43 @@
-# Ruang Waktu — Project, Task Karyawan, Tiket Klien & QA Testing SaaS
+# Ruang Waktu — Proyek, Tugas Tim, Tiket Klien & QA Testing
 
-Platform manajemen proyek terpadu (*Hybrid Local-First & Supabase Cloud Sync*) untuk mengelola **Proyek & Klien**, **Tugas Karyawan per Proyek**, **Tiket Komplain/Bug Klien**, serta **CRUD QA Test Skenario & Test Case** lengkap dengan halaman **Landing Page SaaS** dan **Autentikasi OAuth (Google & GitHub)**.
+Aplikasi untuk mengelola **Proyek & Klien**, **Tugas per Proyek**, **Tiket Komplain/Bug Klien**, serta **Test Scenario & Test Case QA**, dengan alur khas: *Test Case gagal → Tiket → Tugas → Verifikasi*.
 
-## Arsitektur & Teknologi
-- **Framework:** Next.js 15 (App Router, TypeScript)
-- **Styling & Ikon:** Tailwind CSS v4 + CSS Design Tokens (`Inter` & `DM Mono`) + `lucide-react`
-- **Database & Cloud Sync:** Supabase PostgreSQL (`@supabase/supabase-js`) dengan Mode Hybrid (otomatis berjalan lokal jika variabel Supabase belum diisi, dan menyinkronkan ke cloud begitu terhubung)
-- **CI/CD:** GitHub Actions (`.github/workflows/ci.yml`) untuk validasi TypeScript dan *production build* otomatis
-- **Versi HTML/PWA Klasik:** Tersimpan rapi di dalam folder `./legacy-html/`
+Produksi: https://ruang-waktu.vercel.app
 
-## Struktur Direktori
-- `src/app/layout.tsx` — Root layout Next.js dengan font `Inter` & `DM Mono` serta metadata SEO/PWA
-- `src/app/globals.css` — Tailwind CSS & Ruang Waktu Design Tokens (Default Mode Light teduh ramah mata & Mode Dark Emerald)
-- `src/app/page.tsx` — Halaman utama aplikasi
-- `src/components/RuangWaktuApp.tsx` — Komponen utama ruang kerja interaktif
-- `src/lib/supabase.ts` — Klien Supabase & fungsi sinkronisasi Hybrid (`pullStateFromSupabase` / `pushStateToSupabase`)
-- `src/types/ruang-waktu.ts` — Definisi tipe TypeScript
-- `supabase/schema.sql` — Skema tabel PostgreSQL & kebijakan Row Level Security (RLS) siap pakai
-- `.github/workflows/ci.yml` — Pipeline CI/CD GitHub Actions
+## Mode data
+- **Mode Demo (tanpa login):** data contoh, tersimpan hanya di `localStorage` browser.
+- **Akun cloud (setelah login):** Supabase adalah sumber kebenaran. Data diisolasi per akun lewat Row Level Security dan **tidak** di-cache permanen di browser. Saat pertama login dengan workspace cloud yang masih kosong, aplikasi menawarkan untuk mengunggah data dari Mode Demo.
 
-## Cara Menjalankan di Lokal
+> Belum tersedia: workspace tim bersama (multi-user), peran anggota, dan billing. Paket berbayar di landing page ditandai "Segera hadir".
+
+## Teknologi
+- Next.js 15 (App Router, TypeScript), Tailwind CSS v4, `lucide-react`
+- Supabase (PostgreSQL + Auth: email/password, Google, GitHub, alur PKCE)
+- GitHub Actions: typecheck, unit test, build, audit dependensi; Dependabot
+
+## Struktur
+- `src/components/RuangWaktuApp.tsx` — komponen utama (landing, auth, workspace)
+- `src/lib/supabase.ts` — klien Supabase, pull data, sinkronisasi berbasis diff (upsert yang berubah + delete yang dihapus, error selalu diperiksa)
+- `supabase/schema.sql` — tabel
+- `supabase/migrations/` — kebijakan RLS, indeks, batas panjang teks
+- `scripts/*.test.mts` — unit test logika sinkronisasi (`npm test`)
+- `next.config.mjs` — security headers (CSP, X-Frame-Options, nosniff, dll.)
+- `legacy-html/` — versi HTML lama (tidak dideploy)
+
+## Menjalankan di lokal
 ```bash
 npm install
-npm run dev
+cp .env.example .env.local   # isi NEXT_PUBLIC_SUPABASE_URL & NEXT_PUBLIC_SUPABASE_ANON_KEY
+npm run dev                  # http://localhost:3000
+npm test && npm run typecheck
 ```
-Buka `http://localhost:3000` di browser.
+Tanpa variabel Supabase, aplikasi berjalan dalam Mode Demo dan tombol login dinonaktifkan.
 
-## Cara Menghubungkan Database Supabase
-1. Buat project gratis di [supabase.com](https://supabase.com).
-2. Buka menu **SQL Editor** di dashboard Supabase, lalu jalankan isi file `supabase/schema.sql`.
-3. Salin `.env.example` menjadi `.env.local` dan isi `NEXT_PUBLIC_SUPABASE_URL` serta `NEXT_PUBLIC_SUPABASE_ANON_KEY` (atau masukkan langsung melalui menu **Pengaturan → 4. Akun & Database Supabase** di dalam aplikasi).
+## Setup Supabase (wajib untuk produksi)
+1. **SQL Editor:** jalankan `supabase/schema.sql` (instalasi baru), lalu `supabase/migrations/20261105000000_harden_rls.sql`. Migrasi aman dijalankan ulang; baca komentar "LANGKAH 0" di dalamnya untuk memeriksa baris tanpa pemilik.
+2. **Authentication → URL Configuration:** Site URL `https://ruang-waktu.vercel.app`; Redirect URLs: `https://ruang-waktu.vercel.app` dan `http://localhost:3000`.
+3. **Authentication → Providers → Email:** aktifkan *Confirm email*, panjang kata sandi minimal 8.
+4. **Google / GitHub:** aktifkan provider dan isi Client ID/Secret bila ingin dipakai.
+5. **Vercel env:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, opsional `NEXT_PUBLIC_SITE_URL`. Jangan pernah memberi prefiks `NEXT_PUBLIC_` pada `service_role` key.
+
+Catatan PKCE: tautan verifikasi email dan reset kata sandi harus dibuka di browser yang sama dengan tempat permintaan dibuat.

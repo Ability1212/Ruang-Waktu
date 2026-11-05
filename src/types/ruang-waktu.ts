@@ -138,7 +138,4 @@ export interface UserPrefs {
   userPhotoUrl?: string;
   workspace: string;
   plan: SubscriptionPlan;
-  isAuthenticated?: boolean;
-  supabaseUrl?: string;
-  supabaseAnonKey?: string;
 }

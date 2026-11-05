@@ -27,6 +27,13 @@ jobs:
       - name: Run TypeScript validation
         run: npm run typecheck
 
+      - name: Run unit tests
+        run: npm test
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
       - name: Build Next.js production bundle
         run: npm run build
 

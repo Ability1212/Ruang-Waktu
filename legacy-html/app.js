@@ -215,7 +215,7 @@ function playChime() {
       osc.start(now + i * 0.16);
       osc.stop(now + i * 0.16 + 0.7);
     });
-  } catch (_) {}
+  } catch (_) { }
 }
 
 function updateNotifStatusText() {
@@ -243,9 +243,9 @@ function sendSystemNotification(title, body) {
   playChime();
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
-      new Notification(title, { body, icon: 'icon.svg' });
+      new Notification(title, { body, icon: 'icon.png' });
       return;
-    } catch (_) {}
+    } catch (_) { }
   }
   toast(`${title}: ${body}`);
 }
@@ -384,7 +384,7 @@ function toggleThemeWithAnimation(nextTheme, sourceElement) {
           }
         );
       })
-      .catch(() => {});
+      .catch(() => { });
   } else {
     prefs.theme = targetTheme;
     savePrefs();
@@ -477,13 +477,13 @@ function renderDashboard() {
   // Render Timeline
   $('#timeline').innerHTML = events.length
     ? events
-        .map((e) => {
-          const isPast = isToday && e.endTime && e.endTime < nowStr;
-          const isLive =
-            isToday && e.startTime && e.endTime && e.startTime <= nowStr && e.endTime >= nowStr;
-          const duration = mins(e.startTime, e.endTime);
+      .map((e) => {
+        const isPast = isToday && e.endTime && e.endTime < nowStr;
+        const isLive =
+          isToday && e.startTime && e.endTime && e.startTime <= nowStr && e.endTime >= nowStr;
+        const duration = mins(e.startTime, e.endTime);
 
-          return `
+        return `
             <div class="event ${isPast ? 'is-past' : ''} ${isLive ? 'is-live' : ''}">
               <div class="event-time">
                 ${esc(formatTimeDisplay(e.startTime))}
@@ -502,8 +502,8 @@ function renderDashboard() {
               </div>
             </div>
           `;
-        })
-        .join('')
+      })
+      .join('')
     : '<p class="empty">Tidak ada agenda pada tanggal ini. Klik "+ Tambah kegiatan ke jadwal" untuk merencanakan hari Anda.</p>';
 
   // Render Top 3 Priorities
@@ -538,24 +538,24 @@ function renderDashboard() {
   $('#habitNote').textContent = `${doneCount} dari ${hs.length} kebiasaan selesai`;
   $('#habits').innerHTML = hs.length
     ? hs
-        .map((h) => {
-          const done = isHabitDoneOn(h, day);
-          return `
+      .map((h) => {
+        const done = isHabitDoneOn(h, day);
+        return `
             <button type="button" class="habit ${done ? 'done' : ''}" data-habit="${esc(h.id)}">
               <i>${done ? '✓' : esc(h.icon)}</i>
               <span>${esc(h.name)}</span>
             </button>
           `;
-        })
-        .join('')
+      })
+      .join('')
     : '<p class="empty" style="grid-column:1/-1;padding:12px">Belum ada kebiasaan.</p>';
 
   // Render Active Projects with dynamic progress
   $('#projects').innerHTML = state.projects.length
     ? state.projects
-        .map((p) => {
-          const stats = getProjectStats(p.name);
-          return `
+      .map((p) => {
+        const stats = getProjectStats(p.name);
+        return `
             <div class="project" data-edit-project="${esc(p.id)}" style="cursor:pointer">
               <div>
                 <b>${esc(p.name)}</b>
@@ -565,8 +565,8 @@ function renderDashboard() {
               <span>${stats.pct}%</span>
             </div>
           `;
-        })
-        .join('')
+      })
+      .join('')
     : '<p class="empty">Belum ada proyek aktif.</p>';
 
   // Bind Dashboard Events
@@ -628,11 +628,11 @@ function renderCalendar() {
       <button type="button" class="calendar-day ${d.getMonth() !== selected.getMonth() ? 'other' : ''} ${k === key(today) ? 'current' : ''}" data-day="${k}">
         <span class="calendar-day-num">${d.getDate()}</span>
         ${shown
-          .map(
-            (e) =>
-              `<div class="calendar-event">${esc(formatTimeDisplay(e.startTime))} ${esc(e.title)}</div>`
-          )
-          .join('')}
+        .map(
+          (e) =>
+            `<div class="calendar-event">${esc(formatTimeDisplay(e.startTime))} ${esc(e.title)}</div>`
+        )
+        .join('')}
         ${extra > 0 ? `<span class="calendar-more">+${extra} kegiatan lagi</span>` : ''}
       </button>
     `;
@@ -670,8 +670,8 @@ function renderTasks() {
 
   $('#taskList').innerHTML = list.length
     ? list
-        .map(
-          (t) => `
+      .map(
+        (t) => `
           <div class="task ${t.completed ? 'done' : ''}">
             <button type="button" class="task-check" data-toggle="${esc(t.id)}" aria-label="Tandai tugas selesai">
               ${t.completed ? '✓' : ''}
@@ -685,8 +685,8 @@ function renderTasks() {
             <button type="button" class="task-delete" data-delete="${esc(t.id)}" aria-label="Hapus tugas">×</button>
           </div>
         `
-        )
-        .join('')
+      )
+      .join('')
     : '<p class="empty">Tidak ada tugas yang cocok dengan filter atau pencarian ini.</p>';
 
   $('#taskBadge').textContent = state.tasks.filter((t) => !t.completed).length;
@@ -711,10 +711,10 @@ function renderOther() {
 
   $('#habitManager').innerHTML = h.length
     ? h
-        .map((x) => {
-          const done = isHabitDoneOn(x, dayKey);
-          const streak = getHabitStreak(x);
-          return `
+      .map((x) => {
+        const done = isHabitDoneOn(x, dayKey);
+        const streak = getHabitStreak(x);
+        return `
             <div>
               <span style="cursor:pointer" data-edit-habit="${esc(x.id)}">
                 <b>${esc(x.icon)} ${esc(x.name)}</b>
@@ -728,8 +728,8 @@ function renderOther() {
               </div>
             </div>
           `;
-        })
-        .join('')
+      })
+      .join('')
     : '<p class="empty">Belum ada kebiasaan harian. Klik "+ Kebiasaan baru" untuk memulai.</p>';
 
   $$('#habitManager [data-habit]').forEach((b) => {
@@ -757,20 +757,19 @@ function renderOther() {
       return `
         <div class="column">
           <h3>${status} <span>${cols.length}</span></h3>
-          ${
-            cols
-              .map((p) => {
-                const stats = getProjectStats(p.name);
-                return `
+          ${cols
+          .map((p) => {
+            const stats = getProjectStats(p.name);
+            return `
                   <div class="board-item" data-edit-project="${esc(p.id)}">
                     <b>${esc(p.name)}</b>
                     <small>${esc(p.notes ? p.notes + ' · ' : '')}${esc(stats.detail)} (${stats.pct}%)</small>
                     <div class="progress slim"><b style="width:${stats.pct}%"></b></div>
                   </div>
                 `;
-              })
-              .join('') || '<p class="empty">Belum ada proyek pada kolom ini.</p>'
-          }
+          })
+          .join('') || '<p class="empty">Belum ada proyek pada kolom ini.</p>'
+        }
         </div>
       `;
     })
@@ -1003,8 +1002,8 @@ function openModal(k = 'event', item = null) {
         <span>Kategori</span>
         <select name="category">
           ${['Fokus', 'Perencanaan', 'Rapat', 'Pribadi', 'Kesehatan', 'Keluarga']
-            .map((x) => `<option ${item?.category === x ? 'selected' : ''}>${x}</option>`)
-            .join('')}
+        .map((x) => `<option ${item?.category === x ? 'selected' : ''}>${x}</option>`)
+        .join('')}
         </select>
       </label>
       <label class="field">
@@ -1034,11 +1033,11 @@ function openModal(k = 'event', item = null) {
         <span>Prioritas</span>
         <select name="priority">
           ${['Tinggi', 'Sedang', 'Rendah']
-            .map(
-              (x) =>
-                `<option ${item?.priority === x || (!item && x === 'Sedang') ? 'selected' : ''}>${x}</option>`
-            )
-            .join('')}
+        .map(
+          (x) =>
+            `<option ${item?.priority === x || (!item && x === 'Sedang') ? 'selected' : ''}>${x}</option>`
+        )
+        .join('')}
         </select>
       </label>
       <label class="field full">
@@ -1063,8 +1062,8 @@ function openModal(k = 'event', item = null) {
         <span>Status proyek</span>
         <select name="status">
           ${['Berjalan', 'Belajar', 'Selesai']
-            .map((x) => `<option ${item?.status === x ? 'selected' : ''}>${x}</option>`)
-            .join('')}
+        .map((x) => `<option ${item?.status === x ? 'selected' : ''}>${x}</option>`)
+        .join('')}
         </select>
       </label>
       <label class="field full">
@@ -1082,17 +1081,17 @@ function openModal(k = 'event', item = null) {
         <span>Simbol ikon</span>
         <select name="icon">
           ${[
-            ['◌', '◌ Air / Kesehatan'],
-            ['↗', '↗ Olahraga / Gerak'],
-            ['▤', '▤ Membaca / Belajar'],
-            ['✎', '✎ Jurnal / Menulis'],
-            ['✦', '✦ Fokus / Meditasi']
-          ]
-            .map(
-              ([val, label]) =>
-                `<option value="${val}" ${item?.icon === val ? 'selected' : ''}>${label}</option>`
-            )
-            .join('')}
+        ['◌', '◌ Air / Kesehatan'],
+        ['↗', '↗ Olahraga / Gerak'],
+        ['▤', '▤ Membaca / Belajar'],
+        ['✎', '✎ Jurnal / Menulis'],
+        ['✦', '✦ Fokus / Meditasi']
+      ]
+        .map(
+          ([val, label]) =>
+            `<option value="${val}" ${item?.icon === val ? 'selected' : ''}>${label}</option>`
+        )
+        .join('')}
         </select>
       </label>
     `;
@@ -1313,15 +1312,15 @@ function renderCommandResults() {
 
   $('#commandResults').innerHTML = items.length
     ? items
-        .map(
-          (item, i) => `
+      .map(
+        (item, i) => `
           <button type="button" class="${i === cmdIndex ? 'active' : ''}" data-cmd-idx="${i}">
             <span>${esc(item.label)}</span>
             <small>${esc(item.meta)}</small>
           </button>
         `
-        )
-        .join('')
+      )
+      .join('')
     : '<p class="empty">Tidak ditemukan hasil yang cocok.</p>';
 
   $$('#commandResults [data-cmd-idx]').forEach((btn) => {
@@ -1699,7 +1698,7 @@ $('#command').onclick = (e) => {
 // ============================================================================
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js').catch(() => { });
   });
 }
 

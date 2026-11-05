@@ -1,10 +1,12 @@
 <!doctype html>
 <html lang="id">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#E6EEE9" id="themeColor">
-  <meta name="description" content="Ruang Waktu adalah aplikasi pribadi untuk merencanakan jadwal, tugas, kebiasaan, dan sesi fokus.">
+  <meta name="description"
+    content="Ruang Waktu adalah aplikasi pribadi untuk merencanakan jadwal, tugas, kebiasaan, dan sesi fokus.">
   <meta name="robots" content="index,follow">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -13,8 +15,8 @@
   <meta property="og:description" content="Atur jadwal, tugas, kebiasaan, dan fokus dalam satu ruang kerja pribadi.">
   <meta property="og:type" content="website">
   <title>Ruang Waktu — Jadwal &amp; Tugas Pribadi</title>
-  <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="icon" type="image/svg+xml" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,6 +31,7 @@
     }
   </script>
 </head>
+
 <body data-theme="light">
   <a class="skip-link" href="#content">Lewati ke konten</a>
 
@@ -41,45 +44,49 @@
           <span class="brand-text">ruang<b>waktu</b></span>
         </a>
         <button class="sidebar-close" id="sidebarClose" type="button" aria-label="Tutup navigasi">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
         </button>
       </div>
 
       <button class="workspace" id="workspaceButton" type="button" aria-label="Pengaturan ruang kerja">
         <span class="workspace-dot" aria-hidden="true"></span>
         <span class="workspace-name" id="workspaceLabel">Ruang Pribadi</span>
-        <svg class="workspace-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg class="workspace-chevron" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </button>
 
       <p class="nav-label">RUANG KERJA</p>
       <nav class="nav" aria-label="Menu ruang kerja">
         <button class="active" data-view="dashboard" type="button">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-            <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-            <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-            <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" />
           </svg>
           <span>Ringkasan</span>
         </button>
         <button data-view="calendar" type="button">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="3" y="4" width="18" height="17" rx="2"/>
-            <path d="M16 2v4M8 2v4M3 10h18"/>
+            <rect x="3" y="4" width="18" height="17" rx="2" />
+            <path d="M16 2v4M8 2v4M3 10h18" />
           </svg>
           <span>Kalender</span>
         </button>
         <button data-view="tasks" type="button">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9 11l3 3L22 4"/>
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
           </svg>
           <span>Tugas saya</span>
           <em id="taskBadge">0</em>
         </button>
         <button data-view="projects" type="button">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z"/>
+            <path d="M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z" />
           </svg>
           <span>Proyek</span>
         </button>
@@ -89,23 +96,23 @@
       <nav class="nav" aria-label="Menu pengelolaan">
         <button data-view="habits" type="button">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M17 2.1l4 4-4 4"/>
-            <path d="M3 12.2v-2a4 4 0 0 1 4-4h14"/>
-            <path d="M7 21.9l-4-4 4-4"/>
-            <path d="M21 11.8v2a4 4 0 0 1-4 4H3"/>
+            <path d="M17 2.1l4 4-4 4" />
+            <path d="M3 12.2v-2a4 4 0 0 1 4-4h14" />
+            <path d="M7 21.9l-4-4 4-4" />
+            <path d="M21 11.8v2a4 4 0 0 1-4 4H3" />
           </svg>
           <span>Kebiasaan</span>
         </button>
         <button data-view="focus" type="button">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="13" r="8"/>
-            <path d="M12 9v4l2.5 2.5M9 2h6"/>
+            <circle cx="12" cy="13" r="8" />
+            <path d="M12 9v4l2.5 2.5M9 2h6" />
           </svg>
           <span>Mode fokus</span>
         </button>
         <button data-view="insights" type="button">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M18 20V10M12 20V4M6 20v-6"/>
+            <path d="M18 20V10M12 20V4M6 20v-6" />
           </svg>
           <span>Wawasan</span>
         </button>
@@ -114,7 +121,7 @@
       <div class="side-bottom">
         <button class="install-banner" id="installPwaBtn" type="button" hidden>
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+            <path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
           </svg>
           <span>Pasang Aplikasi</span>
         </button>
@@ -127,8 +134,9 @@
         </div>
         <button class="settings-nav" data-view="settings" type="button">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
           <span>Pengaturan</span>
         </button>
@@ -140,7 +148,8 @@
     <main id="content">
       <header class="topbar">
         <div class="topbar-left">
-          <button class="sidebar-toggle" id="hamburger" type="button" aria-label="Buka atau tutup navigasi" aria-controls="sidebar" aria-expanded="true">
+          <button class="sidebar-toggle" id="hamburger" type="button" aria-label="Buka atau tutup navigasi"
+            aria-controls="sidebar" aria-expanded="true">
             <span></span><span></span><span></span>
           </button>
           <div class="breadcrumb">
@@ -152,27 +161,32 @@
 
         <div class="header-actions">
           <button class="search" id="search" type="button" aria-label="Cari jadwal atau tugas">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
             <span>Cari jadwal, tugas, atau perintah…</span>
             <kbd>Ctrl K</kbd>
           </button>
 
-          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Beralih ke tema gelap" aria-pressed="false" title="Ubah tema tampilan">
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Beralih ke tema gelap"
+            aria-pressed="false" title="Ubah tema tampilan">
             <span class="theme-icon-wrap" aria-hidden="true">
               <svg class="icon-sun" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="4"/>
-                <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32 1.41-1.41"/>
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32 1.41-1.41" />
               </svg>
               <svg class="icon-moon" viewBox="0 0 24 24">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             </span>
           </button>
 
           <button class="round" id="notice" type="button" aria-label="Ringkasan pengingat">
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
             <i id="noticeDot"></i>
           </button>
@@ -184,7 +198,9 @@
                 <b id="headerUserName">Abil Mahendra</b>
                 <small id="headerWorkspace">Ruang Pribadi</small>
               </span>
-              <svg class="account-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              <svg class="account-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
             </button>
             <div class="account-menu" id="accountMenu" role="menu">
               <div class="account-menu-head">
@@ -214,9 +230,11 @@
           </div>
           <div class="heading-actions">
             <div class="date-stepper" role="group" aria-label="Navigasi tanggal">
-              <button class="step-btn" id="prevDay" type="button" aria-label="Hari sebelumnya" title="Hari sebelumnya">←</button>
+              <button class="step-btn" id="prevDay" type="button" aria-label="Hari sebelumnya"
+                title="Hari sebelumnya">←</button>
               <button class="step-today" id="today" type="button">Hari ini</button>
-              <button class="step-btn" id="nextDay" type="button" aria-label="Hari berikutnya" title="Hari berikutnya">→</button>
+              <button class="step-btn" id="nextDay" type="button" aria-label="Hari berikutnya"
+                title="Hari berikutnya">→</button>
             </div>
             <button class="button primary" id="add" type="button">+ Tambah baru</button>
           </div>
@@ -306,7 +324,8 @@
               </div>
               <small id="noteSaved">Tersimpan</small>
             </div>
-            <textarea id="quickNote" placeholder="Tulis ide, pengingat rapat, atau hal penting yang tidak ingin terlupa…"></textarea>
+            <textarea id="quickNote"
+              placeholder="Tulis ide, pengingat rapat, atau hal penting yang tidak ingin terlupa…"></textarea>
           </article>
         </div>
       </section>
@@ -355,7 +374,8 @@
               <button data-filter="done" type="button">Selesai</button>
             </div>
             <div class="task-tools-right">
-              <input type="search" id="taskSearchInput" class="task-search-input" placeholder="Cari nama tugas atau proyek…" aria-label="Cari tugas">
+              <input type="search" id="taskSearchInput" class="task-search-input"
+                placeholder="Cari nama tugas atau proyek…" aria-label="Cari tugas">
               <select id="priorityFilter" aria-label="Filter prioritas">
                 <option value="all">Semua prioritas</option>
                 <option value="Tinggi">Prioritas Tinggi</option>
@@ -412,8 +432,8 @@
 
           <div class="timer-ring-wrap">
             <svg class="timer-ring" viewBox="0 0 220 220" aria-hidden="true">
-              <circle class="timer-ring-track" cx="110" cy="110" r="98"/>
-              <circle class="timer-ring-progress" id="timerRingProgress" cx="110" cy="110" r="98"/>
+              <circle class="timer-ring-track" cx="110" cy="110" r="98" />
+              <circle class="timer-ring-progress" id="timerRingProgress" cx="110" cy="110" r="98" />
             </svg>
             <div class="timer-display">
               <small id="focusState">SIAP MEMULAI</small>
@@ -522,10 +542,14 @@
                   <small>Pilih nuansa warna utama untuk tombol dan penanda aktif</small>
                 </div>
                 <div class="accent-picker" id="accentPicker" role="radiogroup" aria-label="Warna aksen">
-                  <button type="button" class="accent-swatch active" data-accent="emerald" title="Emerald" aria-label="Emerald"></button>
-                  <button type="button" class="accent-swatch" data-accent="teal" title="Teal" aria-label="Teal"></button>
-                  <button type="button" class="accent-swatch" data-accent="forest" title="Forest" aria-label="Forest"></button>
-                  <button type="button" class="accent-swatch" data-accent="lime" title="Olive Lime" aria-label="Olive Lime"></button>
+                  <button type="button" class="accent-swatch active" data-accent="emerald" title="Emerald"
+                    aria-label="Emerald"></button>
+                  <button type="button" class="accent-swatch" data-accent="teal" title="Teal"
+                    aria-label="Teal"></button>
+                  <button type="button" class="accent-swatch" data-accent="forest" title="Forest"
+                    aria-label="Forest"></button>
+                  <button type="button" class="accent-swatch" data-accent="lime" title="Olive Lime"
+                    aria-label="Olive Lime"></button>
                 </div>
               </div>
 
@@ -662,7 +686,8 @@
                 </label>
               </div>
               <div class="settings-form-actions">
-                <button type="button" class="button danger-ghost" id="clearAllDataBtn" title="Hapus contoh data dan mulai dari kosong">Mulai Kosong</button>
+                <button type="button" class="button danger-ghost" id="clearAllDataBtn"
+                  title="Hapus contoh data dan mulai dari kosong">Mulai Kosong</button>
                 <button type="button" class="button ghost" id="importDataBtn">Impor JSON</button>
                 <button type="button" class="button ghost" id="exportDataBtn">Ekspor JSON</button>
                 <button type="submit" class="button primary">Simpan profil</button>
@@ -708,8 +733,12 @@
   <div class="overlay command" id="command" role="dialog" aria-modal="true" aria-label="Pencarian cepat dan perintah">
     <div class="command-box">
       <div class="command-input-wrap">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input id="commandInput" type="text" placeholder="Ketik untuk mencari jadwal, tugas, proyek, atau pilih perintah…" autocomplete="off">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+        <input id="commandInput" type="text"
+          placeholder="Ketik untuk mencari jadwal, tugas, proyek, atau pilih perintah…" autocomplete="off">
         <kbd>Esc</kbd>
       </div>
       <section id="commandResults" class="command-results"></section>
@@ -719,4 +748,5 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="app.js"></script>
 </body>
+
 </html>

@@ -2,13 +2,14 @@
   "name": "ruang-waktu",
   "version": "1.0.0",
   "private": true,
-  "description": "Ruang Waktu — Aplikasi produktivitas pribadi (Jadwal, Tugas, Kebiasaan, dan Sesi Fokus) berbasis Next.js, Tailwind CSS, dan Supabase.",
+  "description": "Ruang Waktu — manajemen proyek, tugas tim, tiket klien, dan QA test case berbasis Next.js dan Supabase.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --no-warnings --test scripts/*.test.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
@@ -27,4 +28,3 @@
     "typescript": "^5.7.3"
   }
 }
-

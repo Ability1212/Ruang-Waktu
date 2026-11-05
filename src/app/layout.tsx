@@ -17,16 +17,17 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://ruang-waktu.vercel.app'),
   title: 'Ruang Waktu — Manajemen Proyek, Helpdesk Tiket & QA Tim',
   description:
     'Ruang Waktu adalah aplikasi manajemen proyek, tugas tim, helpdesk tiket klien, dan pengujian QA berbasis Next.js dan Supabase.',
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
-      { url: '/icon.svg', type: 'image/svg+xml' }
+      { url: '/icon.png', type: 'image/png' }
     ],
-    shortcut: '/icon.svg',
-    apple: '/icon.svg'
+    shortcut: '/icon.png',
+    apple: '/icon.png'
   },
   openGraph: {
     title: 'Ruang Waktu — Manajemen Proyek, Helpdesk Tiket & QA Tim',

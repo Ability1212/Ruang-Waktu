@@ -9,11 +9,10 @@
   "lang": "id",
   "icons": [
     {
-      "src": "icon.svg",
+      "src": "icon.png",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ]
 }
-

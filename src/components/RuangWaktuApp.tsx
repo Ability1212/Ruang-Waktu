@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Check,
   BarChart3,
   Bell,
   Bug,
@@ -33,6 +34,25 @@ import {
   Users,
   X
 } from 'lucide-react';
+import {
+  BrandLogoIcon,
+  DashboardIcon,
+  ProjectsIcon,
+  ScenarioIcon,
+  TasksIcon,
+  TicketsIcon,
+  QAIcon,
+  CalendarIcon,
+  AnalyticsIcon,
+  NotificationsIcon,
+  SettingsIcon,
+  SearchIcon,
+  PlusIcon,
+  VolumeIcon,
+  VolumeMuteIcon,
+  CUSTOM_ICONS_CATALOG
+} from './icons/CustomIcons';
+import { sound } from '../lib/audio';
 import type {
   AppNotification,
   AppState,
@@ -54,11 +74,15 @@ import type {
   UserPrefs,
   ViewName
 } from '@/types/ruang-waktu';
+import type { User } from '@supabase/supabase-js';
 import {
+  EMPTY_STATE,
+  friendlyAuthError,
   getSupabaseClient,
   getSupabaseConfig,
   pullStateFromSupabase,
-  pushStateToSupabase
+  remapIdsForUpload,
+  syncStateToSupabase
 } from '@/lib/supabase';
 
 const getJakartaDateParts = (d: Date = new Date()) => {
@@ -88,7 +112,7 @@ const moveDate = (d: Date, days: number) => {
   return x;
 };
 
-const makeId = () => Math.random().toString(36).slice(2, 9);
+const makeId = () => crypto.randomUUID();
 
 const fmtDate = (
   d: Date,
@@ -175,16 +199,64 @@ const defaultPrefs: UserPrefs = {
   remindSchedule: true,
   remindDeadline: true,
   soundEffects: true,
-  userName: 'Abil Mahendra',
+  userName: 'Pengguna Demo',
   userRole: 'Product & QA Lead',
-  userEmail: 'abil@ruangwaktu.id',
-  userAvatar: 'AM',
+  userEmail: '',
+  userAvatar: 'PD',
   userPhotoUrl: '',
   workspace: 'Tim Engineering & QA',
-  plan: 'Pro',
-  isAuthenticated: false,
-  supabaseUrl: '',
-  supabaseAnonKey: ''
+  plan: 'Starter'
+};
+
+const STATE_KEY = 'ruangWaktuState_v3';
+const PREFS_KEY = 'ruangWaktuPrefs_v3';
+
+/** Muat data mode demo dari localStorage TANPA mencampur data contoh per indeks. */
+const loadLocalState = (todayDate: Date): { state: AppState; fromStorage: boolean } => {
+  const base = createDefaultState(todayDate);
+  try {
+    const saved = JSON.parse(localStorage.getItem(STATE_KEY) || 'null');
+    if (!saved || !Array.isArray(saved.tasks)) return { state: base, fromStorage: false };
+    const arr = <T,>(v: unknown, fallback: T[]): T[] => (Array.isArray(v) ? (v as T[]) : fallback);
+    return {
+      fromStorage: true,
+      state: {
+        events: arr<ScheduleEvent>(saved.events, []),
+        tasks: arr<TaskItem>(saved.tasks, []).map((t) => ({
+          ...t,
+          title: sanitizeCyrillic(t.title),
+          notes: sanitizeCyrillic(t.notes)
+        })),
+        projects: arr<ProjectItem>(saved.projects, []).map((p) => ({
+          ...p,
+          name: sanitizeCyrillic(p.name)
+        })),
+        tickets: arr<ClientTicket>(saved.tickets, []).map((tk) => ({
+          ...tk,
+          title: sanitizeCyrillic(tk.title),
+          description: sanitizeCyrillic(tk.description),
+          status: normalizeTicketStatusVal(tk.status)
+        })),
+        scenarios: arr<TestScenario>(saved.scenarios, []),
+        testCases: arr<TestCase>(saved.testCases, []).map((tc) => ({
+          ...tc,
+          title: sanitizeCyrillic(tc.title)
+        })),
+        notifications: arr<AppNotification>(saved.notifications, base.notifications)
+      }
+    };
+  } catch {
+    return { state: base, fromStorage: false };
+  }
+};
+
+const countItems = (st: AppState) =>
+  st.projects.length + st.tasks.length + st.tickets.length + st.scenarios.length + st.testCases.length + st.events.length;
+
+/** Nomor berikutnya = max(nomor yang ada) + 1, agar kode tidak duplikat setelah penghapusan. */
+const nextCodeNumber = (codes: string[], fallbackStart: number) => {
+  const nums = codes.map((c) => Number((c || '').replace(/\D/g, ''))).filter((n) => Number.isFinite(n) && n > 0);
+  return nums.length ? Math.max(...nums) + 1 : fallbackStart;
 };
 
 const WORKSPACE_LIST = [
@@ -493,8 +565,24 @@ interface ConfirmDialogState {
   title: string;
   message: string;
   confirmLabel?: string;
+  tone?: 'danger' | 'primary';
   onConfirm: () => void;
 }
+
+const GoogleLogo = () => (
+  <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+    <path fill="#EA4335" d="M9 3.48c1.69 0 2.83.73 3.48 1.34l2.54-2.48C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.96l2.91 2.26C4.6 5.05 6.62 3.48 9 3.48z" />
+    <path fill="#4285F4" d="M17.64 9.2c0-.74-.06-1.28-.19-1.84H9v3.34h4.96c-.1.83-.64 2.08-1.84 2.92l2.84 2.2c1.7-1.57 2.68-3.88 2.68-6.62z" />
+    <path fill="#FBBC05" d="M3.88 10.78A5.54 5.54 0 0 1 3.58 9c0-.62.11-1.22.29-1.78L.96 4.96A9.008 9.008 0 0 0 0 9c0 1.45.35 2.82.96 4.04l2.92-2.26z" />
+    <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.84-2.2c-.76.53-1.78.9-3.12.9-2.38 0-4.4-1.57-5.12-3.74L.97 13.04C2.45 15.98 5.48 18 9 18z" />
+  </svg>
+);
+
+const GitHubLogo = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor">
+    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+  </svg>
+);
 
 export default function RuangWaktuApp() {
   const [today, setToday] = useState<Date>(() => getJakartaToday());
@@ -536,6 +624,8 @@ export default function RuangWaktuApp() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notifPopoverOpen, setNotifPopoverOpen] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const [isIconShowcaseOpen, setIsIconShowcaseOpen] = useState(false);
 
   // Modal CRUD state
   const [modalOpen, setModalOpen] = useState(false);
@@ -567,6 +657,7 @@ export default function RuangWaktuApp() {
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const quickCreateRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const projectDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const pushToast = (title: string, subtitle?: string) => {
     const newId = makeId();
@@ -576,8 +667,14 @@ export default function RuangWaktuApp() {
     }, 3200);
   };
 
-  const askConfirm = (title: string, message: string, onConfirm: () => void, confirmLabel = 'Ya, Hapus') => {
-    setConfirmDialog({ title, message, confirmLabel, onConfirm });
+  const askConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    confirmLabel = 'Ya, Hapus',
+    tone: 'danger' | 'primary' = 'danger'
+  ) => {
+    setConfirmDialog({ title, message, confirmLabel, tone, onConfirm });
   };
 
   // Outside Click Listener for User Menu, Notification Popover, Quick Create & Status Menus
@@ -596,6 +693,9 @@ export default function RuangWaktuApp() {
       if (quickCreateRef.current && !quickCreateRef.current.contains(target)) {
         setQuickCreateOpen(false);
       }
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(target)) {
+        setProjectDropdownOpen(false);
+      }
       const el = target as HTMLElement | null;
       if (el && !el.closest?.('.status-dropdown-wrap')) {
         setOpenStatusMenuId(null);
@@ -605,7 +705,142 @@ export default function RuangWaktuApp() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Load state from localStorage & Supabase + compute client-side Asia/Jakarta date
+  // Global UI Click Sound Delegator (Plays on ANY interactive element click across the entire app)
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (!prefs.soundEffects) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      const isClickable = target.closest(
+        'button, [role="button"], [role="tab"], [role="menuitem"], a, input[type="checkbox"], input[type="radio"], input[type="submit"], select, .clickable, .accent-swatch, .task-card, .ticket-row, .pill, .filter-chip, .project-card, .scenario-item, .testcase-card, .btn'
+      );
+
+      if (isClickable) {
+        sound.playClick();
+      }
+    };
+
+    document.addEventListener('click', handleGlobalClick, true);
+    return () => {
+      document.removeEventListener('click', handleGlobalClick, true);
+    };
+  }, [prefs.soundEffects]);
+
+  // ---------------------------------------------------------------------------
+  // Sesi autentikasi & mode cloud
+  // - Tanpa sesi  : Mode Demo, data hanya di localStorage perangkat ini.
+  // - Dengan sesi : Supabase adalah sumber kebenaran; data cloud TIDAK di-cache
+  //                 ke localStorage agar tidak tertinggal di komputer bersama.
+  // ---------------------------------------------------------------------------
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const isAuthenticated = Boolean(authUser);
+  const authUserRef = useRef<User | null>(null);
+  const lastSyncedRef = useRef<AppState | null>(null);
+  const syncChainRef = useRef<Promise<void>>(Promise.resolve());
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState('');
+  const cloudAvailable = getSupabaseConfig().isConfigured;
+
+  const initialsOf = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase() || 'RW';
+
+  // Persist state
+  const persistState = (nextState: AppState) => {
+    setState(nextState);
+    if (!authUserRef.current) {
+      localStorage.setItem(STATE_KEY, JSON.stringify(nextState));
+      return;
+    }
+    const client = getSupabaseClient();
+    if (!client || !lastSyncedRef.current) {
+      setCloudStatus('error');
+      pushToast('Belum terhubung ke cloud', 'Muat ulang halaman sebelum melanjutkan agar perubahan tidak hilang.');
+      return;
+    }
+    setCloudStatus('syncing');
+    syncChainRef.current = syncChainRef.current.then(async () => {
+      const prev = lastSyncedRef.current;
+      if (!prev) return;
+      try {
+        await syncStateToSupabase(client, prev, nextState);
+        lastSyncedRef.current = nextState;
+        setCloudStatus('connected');
+      } catch (err) {
+        console.error(err);
+        setCloudStatus('error');
+        pushToast('Perubahan belum tersimpan ke cloud', 'Akan dicoba lagi otomatis pada perubahan berikutnya.');
+      }
+    });
+  };
+
+  const enterCloudMode = async (user: User) => {
+    const client = getSupabaseClient();
+    if (!client) return;
+    const meta = (user.user_metadata || {}) as Record<string, string | undefined>;
+    const name = meta.full_name || meta.name || (user.email || '').split('@')[0] || 'Pengguna';
+    setPrefs((p) => ({
+      ...p,
+      userName: name,
+      userEmail: user.email || '',
+      userAvatar: initialsOf(name),
+      userPhotoUrl: meta.avatar_url || ''
+    }));
+    setScreenMode('workspace');
+    setCloudStatus('syncing');
+    lastSyncedRef.current = null;
+    setState(EMPTY_STATE);
+    try {
+      const remote = await pullStateFromSupabase(client);
+      lastSyncedRef.current = remote;
+      setState(remote);
+      setSelectedScenarioId(remote.scenarios[0]?.id || '');
+      setCloudStatus('connected');
+
+      const local = loadLocalState(getJakartaToday());
+      if (countItems(remote) === 0 && local.fromStorage && countItems(local.state) > 0) {
+        askConfirm(
+          'Unggah data dari perangkat ini?',
+          `Workspace cloud Anda masih kosong. Ada ${countItems(local.state)} data tersimpan di browser ini (termasuk data contoh bila belum dihapus). Unggah ke akun Anda?`,
+          () => {
+            const uploaded = remapIdsForUpload({ ...local.state, notifications: [] });
+            persistState(uploaded);
+            setSelectedScenarioId(uploaded.scenarios[0]?.id || '');
+            pushToast('Mengunggah data', 'Data dari perangkat ini sedang disalin ke cloud.');
+          },
+          'Ya, Unggah',
+          'primary'
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setCloudStatus('error');
+      pushToast('Gagal memuat data cloud', 'Periksa koneksi Anda lalu muat ulang halaman.');
+    }
+  };
+
+  const leaveCloudMode = () => {
+    lastSyncedRef.current = null;
+    setCloudStatus('local');
+    const local = loadLocalState(getJakartaToday());
+    setState(local.state);
+    setSelectedScenarioId(local.state.scenarios[0]?.id || '');
+    setPrefs((p) => ({
+      ...p,
+      userName: defaultPrefs.userName,
+      userEmail: '',
+      userAvatar: defaultPrefs.userAvatar,
+      userPhotoUrl: ''
+    }));
+  };
+
+  // Muat preferensi & data mode demo + hitung tanggal Asia/Jakarta di sisi klien
   useEffect(() => {
     const jakartaNow = getJakartaToday();
     setToday(jakartaNow);
@@ -621,79 +856,52 @@ export default function RuangWaktuApp() {
     );
 
     try {
-      const savedPrefs = JSON.parse(localStorage.getItem('ruangWaktuPrefs_v3') || '{}');
-      const mergedPrefs: UserPrefs = { ...defaultPrefs, ...savedPrefs };
-      setPrefs(mergedPrefs);
-
-      const savedState = JSON.parse(localStorage.getItem('ruangWaktuState_v3') || 'null');
-      const base = createDefaultState(jakartaNow);
-      if (savedState && Array.isArray(savedState.tasks)) {
-        const merged: AppState = {
-          events: savedState.events || base.events,
-          tasks: (savedState.tasks || base.tasks).map((t: TaskItem, idx: number) => ({
-            ...base.tasks[idx],
-            ...t,
-            title: sanitizeCyrillic(t.title),
-            notes: sanitizeCyrillic(t.notes),
-            ticketCode: t.ticketCode || base.tasks[idx]?.ticketCode,
-            testCaseCode: t.testCaseCode || base.tasks[idx]?.testCaseCode
-          })),
-          projects: (savedState.projects || base.projects).map((p: ProjectItem) => ({
-            ...p,
-            name: sanitizeCyrillic(p.name)
-          })),
-          tickets: (savedState.tickets || base.tickets).map((tk: ClientTicket, idx: number) => ({
-            ...base.tickets[idx],
-            ...tk,
-            title: sanitizeCyrillic(tk.title),
-            description: sanitizeCyrillic(tk.description),
-            status: normalizeTicketStatusVal(tk.status),
-            linkedTaskId: tk.linkedTaskId || base.tickets[idx]?.linkedTaskId,
-            linkedTestCaseCode: tk.linkedTestCaseCode || base.tickets[idx]?.linkedTestCaseCode
-          })),
-          scenarios: savedState.scenarios || base.scenarios,
-          testCases: (savedState.testCases || base.testCases).map((tc: TestCase, idx: number) => ({
-            ...base.testCases[idx],
-            ...tc,
-            title: sanitizeCyrillic(tc.title),
-            linkedTicketCode: tc.linkedTicketCode || base.testCases[idx]?.linkedTicketCode,
-            linkedTaskId: tc.linkedTaskId || base.testCases[idx]?.linkedTaskId
-          })),
-          notifications: savedState.notifications || base.notifications
-        };
-        setState(merged);
-        localStorage.setItem('ruangWaktuState_v3', JSON.stringify(merged));
-        if (merged.scenarios[0]?.id) {
-          setSelectedScenarioId(merged.scenarios[0].id);
-        }
-      } else {
-        setState(base);
-      }
-
-      setQuickNote(localStorage.getItem('ruangWaktuNote') || '');
-      setSidebarCollapsed(localStorage.getItem('ruangWaktuSidebar') === 'collapsed');
-
-      const client = getSupabaseClient(mergedPrefs);
-      if (client) {
-        setCloudStatus('syncing');
-        client.auth.getSession().then(({ data }) => {
-          if (data.session) {
-            setPrefs((p) => ({ ...p, isAuthenticated: true }));
-          }
-        });
-        pullStateFromSupabase(client, base.notifications)
-          .then((remote) => {
-            if (remote && (remote.projects.length || remote.tasks.length || remote.tickets.length)) {
-              setState(remote);
-              localStorage.setItem('ruangWaktuState_v3', JSON.stringify(remote));
-            }
-            setCloudStatus('connected');
-          })
-          .catch(() => setCloudStatus('error'));
-      }
+      const savedPrefs = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
+      // Buang field lama yang tidak lagi boleh dikendalikan dari browser
+      delete savedPrefs.isAuthenticated;
+      delete savedPrefs.supabaseUrl;
+      delete savedPrefs.supabaseAnonKey;
+      setPrefs({ ...defaultPrefs, ...savedPrefs });
     } catch {
-      // use defaults
+      setPrefs(defaultPrefs);
     }
+
+    const local = loadLocalState(jakartaNow);
+    setState(local.state);
+    if (local.state.scenarios[0]?.id) setSelectedScenarioId(local.state.scenarios[0].id);
+
+    setQuickNote(localStorage.getItem('ruangWaktuNote') || '');
+    setSidebarCollapsed(localStorage.getItem('ruangWaktuSidebar') === 'collapsed');
+  }, []);
+
+  // Dengarkan perubahan sesi Supabase (INITIAL_SESSION, SIGNED_IN, SIGNED_OUT, PASSWORD_RECOVERY)
+  useEffect(() => {
+    const client = getSupabaseClient();
+    if (!client) return;
+    const { data: sub } = client.auth.onAuthStateChange((event, session) => {
+      const user = session?.user ?? null;
+      if (event === 'PASSWORD_RECOVERY') {
+        setScreenMode('workspace');
+        setView('profile');
+        pushToast('Atur kata sandi baru', 'Isi kata sandi baru pada kartu "Kredensial Login".');
+      }
+      if (user?.id === authUserRef.current?.id) {
+        if (user) {
+          authUserRef.current = user;
+          setAuthUser(user);
+        }
+        return;
+      }
+      authUserRef.current = user;
+      setAuthUser(user);
+      // Supabase menyarankan tidak memanggil API lain langsung di dalam callback ini.
+      setTimeout(() => {
+        if (user) void enterCloudMode(user);
+        else leaveCloudMode();
+      }, 0);
+    });
+    return () => sub.subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync visual attributes to <body>
@@ -703,22 +911,119 @@ export default function RuangWaktuApp() {
     document.body.dataset.softness = prefs.lightSoftness || 'soft';
     document.body.dataset.accent = prefs.accent || 'emerald';
     document.body.dataset.calendarDensity = prefs.calendarDensity || 'standard';
-    localStorage.setItem('ruangWaktuPrefs_v3', JSON.stringify(prefs));
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
   }, [prefs, mounted]);
 
-  // Persist state
-  const persistState = (nextState: AppState) => {
-    setState(nextState);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('ruangWaktuState_v3', JSON.stringify(nextState));
+  const handleEmailAuth = async (mode: 'login' | 'register', email: string, password: string, name: string) => {
+    const client = getSupabaseClient();
+    if (!client) {
+      setAuthMessage('Login belum tersedia karena backend belum dikonfigurasi. Gunakan Mode Demo.');
+      return;
     }
-    const client = getSupabaseClient(prefs);
-    if (client) {
-      setCloudStatus('syncing');
-      pushStateToSupabase(client, nextState)
-        .then(() => setCloudStatus('connected'))
-        .catch(() => setCloudStatus('error'));
+    setAuthBusy(true);
+    setAuthMessage('');
+    try {
+      if (mode === 'register') {
+        if (password.length < 8) {
+          setAuthMessage('Kata sandi minimal 8 karakter.');
+          return;
+        }
+        const { data, error } = await client.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: name }, emailRedirectTo: window.location.origin }
+        });
+        if (error) {
+          setAuthMessage(friendlyAuthError(error.message));
+          return;
+        }
+        if (!data.session) {
+          setAuthMessage('Cek email Anda dan klik tautan verifikasi, lalu masuk.');
+          return;
+        }
+        pushToast('Pendaftaran berhasil', `Selamat datang, ${name}.`);
+      } else {
+        const { error } = await client.auth.signInWithPassword({ email, password });
+        if (error) {
+          setAuthMessage(friendlyAuthError(error.message));
+          return;
+        }
+        pushToast('Berhasil masuk', 'Memuat data workspace Anda…');
+      }
+    } finally {
+      setAuthBusy(false);
     }
+  };
+
+  const handleForgotPassword = async (email: string) => {
+    const client = getSupabaseClient();
+    if (!client) {
+      setAuthMessage('Fitur ini membutuhkan backend Supabase.');
+      return;
+    }
+    if (!email) {
+      setAuthMessage('Isi alamat email terlebih dahulu, lalu klik "Lupa kata sandi?".');
+      return;
+    }
+    setAuthBusy(true);
+    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    setAuthBusy(false);
+    setAuthMessage(
+      error && /rate|too many/i.test(error.message)
+        ? friendlyAuthError(error.message)
+        : 'Jika email terdaftar, tautan atur ulang kata sandi telah dikirim. Buka tautan di browser yang sama.'
+    );
+  };
+
+  const handleUpdateCredentials = async (email: string, password: string, confirm: string) => {
+    const client = getSupabaseClient();
+    const current = authUserRef.current;
+    if (!client || !current) {
+      pushToast('Masuk terlebih dahulu', 'Kredensial hanya dapat diubah untuk akun cloud.');
+      return false;
+    }
+    const updates: { email?: string; password?: string } = {};
+    if (email && email !== current.email) updates.email = email;
+    if (password || confirm) {
+      if (password.length < 8) {
+        pushToast('Kata sandi terlalu pendek', 'Gunakan minimal 8 karakter.');
+        return false;
+      }
+      if (password !== confirm) {
+        pushToast('Konfirmasi tidak cocok', 'Ketik ulang kata sandi yang sama.');
+        return false;
+      }
+      updates.password = password;
+    }
+    if (!Object.keys(updates).length) {
+      pushToast('Tidak ada perubahan', 'Isi email baru atau kata sandi baru.');
+      return false;
+    }
+    const { error } = await client.auth.updateUser(updates);
+    if (error) {
+      pushToast('Gagal memperbarui kredensial', friendlyAuthError(error.message));
+      return false;
+    }
+    pushToast(
+      'Kredensial diperbarui',
+      updates.email ? 'Cek email baru Anda untuk mengonfirmasi perubahan.' : 'Kata sandi baru sudah aktif.'
+    );
+    return true;
+  };
+
+  const handleSignOut = async () => {
+    setAccountMenuOpen(false);
+    const client = getSupabaseClient();
+    if (client && authUserRef.current) {
+      const { error } = await client.auth.signOut();
+      if (error) console.error(error);
+      // Event SIGNED_OUT juga memanggil leaveCloudMode(); dipanggil langsung sebagai jaring pengaman.
+      authUserRef.current = null;
+      setAuthUser(null);
+      leaveCloudMode();
+    }
+    setScreenMode('login');
+    pushToast('Anda telah keluar', 'Sesi di perangkat ini sudah diakhiri.');
   };
 
   // Keyboard shortcuts (Ctrl+K, N for quick create, Escape)
@@ -807,7 +1112,7 @@ export default function RuangWaktuApp() {
             }
           );
         })
-        .catch(() => {});
+        .catch(() => { });
     } else {
       setPrefs((p) => ({ ...p, theme: targetTheme }));
     }
@@ -944,7 +1249,7 @@ export default function RuangWaktuApp() {
       return;
     }
     const sc = state.scenarios.find((s) => s.id === tc.scenarioId);
-    const nextCode = `TKT-${state.tickets.length + 101}`;
+    const nextCode = `TKT-${nextCodeNumber(state.tickets.map((x) => x.code), 101)}`;
     const newTicket: ClientTicket = {
       id: makeId(),
       code: nextCode,
@@ -1082,7 +1387,7 @@ export default function RuangWaktuApp() {
       persistState({ ...state, projects: nextProjects });
     } else if (modalKind === 'ticket') {
       const existing = editingItem as ClientTicket | null;
-      const nextNum = state.tickets.length + 101;
+      const nextNum = nextCodeNumber(state.tickets.map((x) => x.code), 101);
       const item: ClientTicket = {
         id: existing?.id || makeId(),
         code: data.code || existing?.code || `TKT-${nextNum}`,
@@ -1104,7 +1409,7 @@ export default function RuangWaktuApp() {
       persistState({ ...state, tickets: nextTickets });
     } else if (modalKind === 'scenario') {
       const existing = editingItem as TestScenario | null;
-      const nextNum = String(state.scenarios.length + 1).padStart(2, '0');
+      const nextNum = String(nextCodeNumber(state.scenarios.map((x) => x.code), 1)).padStart(2, '0');
       const newId = existing?.id || makeId();
       const item: TestScenario = {
         id: newId,
@@ -1121,7 +1426,7 @@ export default function RuangWaktuApp() {
       setSelectedScenarioId(newId);
     } else if (modalKind === 'testcase') {
       const existing = editingItem as TestCase | null;
-      const nextNum = String(state.testCases.length + 1).padStart(3, '0');
+      const nextNum = String(nextCodeNumber(state.testCases.map((x) => x.code), 1)).padStart(3, '0');
       const item: TestCase = {
         id: existing?.id || makeId(),
         scenarioId: data.scenarioId || selectedScenarioId || state.scenarios[0]?.id || 'ts1',
@@ -1143,6 +1448,7 @@ export default function RuangWaktuApp() {
       persistState({ ...state, testCases: nextCases });
     }
 
+    if (prefs.soundEffects) sound.playSuccess();
     setModalOpen(false);
     pushToast(
       editingItem ? 'Perubahan Disimpan' : 'Data Baru Ditambahkan',
@@ -1188,20 +1494,16 @@ export default function RuangWaktuApp() {
   };
 
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
-    const client = getSupabaseClient(prefs);
-    if (client) {
-      await client.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo: window.location.origin }
-      });
-    } else {
-      setPrefs((p) => ({ ...p, isAuthenticated: true }));
-      setScreenMode('workspace');
-      pushToast(
-        `Login OAuth (${provider === 'google' ? 'Google' : 'GitHub'}) Berhasil`,
-        'Masuk ke ruang kerja terautentikasi.'
-      );
+    const client = getSupabaseClient();
+    if (!client) {
+      pushToast('Login belum tersedia', 'Backend Supabase belum dikonfigurasi pada lingkungan ini.');
+      return;
     }
+    const { error } = await client.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.origin }
+    });
+    if (error) pushToast('Login gagal', friendlyAuthError(error.message));
   };
 
   // Single Source of Truth Metrics Calculation (Scoped by globalProjectFilter)
@@ -1337,7 +1639,6 @@ export default function RuangWaktuApp() {
     );
   }, [cmdQuery, state.tickets, state.tasks, state.testCases]);
 
-  const supabaseInfo = getSupabaseConfig(prefs);
 
   // ==========================================================================
   // SCREEN: COMPREHENSIVE 10-SECTION SAAS LANDING PAGE & PRICING PLANS
@@ -1356,15 +1657,15 @@ export default function RuangWaktuApp() {
       },
       {
         q: 'Apakah bisa login menggunakan Google atau GitHub (OAuth 2.0)?',
-        a: 'Tentu. Halaman Login dan Register sudah terintegrasi dengan provider OAuth Google & GitHub melalui Supabase Auth. Saat berjalan dalam Mode Hybrid tanpa server eksternal, sistem juga menyediakan simulasi masuk OAuth instan.'
+        a: 'Ya. Login dan pendaftaran memakai Supabase Auth, baik dengan email + kata sandi maupun OAuth Google dan GitHub. Tanpa login, Anda tetap dapat mencoba aplikasi dalam Mode Demo; datanya hanya tersimpan di browser Anda.'
       },
       {
         q: 'Bagaimana sistem penyimpanan datanya? Apakah aman jika internet terputus?',
-        a: 'RuangWaktu menggunakan arsitektur Hybrid Local-First + Supabase PostgreSQL Cloud. Seluruh perubahan tersimpan seketika di penyimpanan lokal browser (< 10ms) dan otomatis melakukan sinkronisasi ke tabel PostgreSQL Supabase ketika koneksi tersedia. Anda juga dapat mengekspor/mengimpor cadangan JSON kapan saja.'
+        a: 'Setelah login, data tersimpan di database PostgreSQL (Supabase) dan hanya dapat diakses oleh akun Anda melalui Row Level Security. Data cloud tidak disimpan permanen di browser, sehingga aplikasi membutuhkan koneksi internet. Di Mode Demo, data hanya tersimpan di browser perangkat tersebut. Anda dapat mengekspor cadangan JSON kapan saja.'
       },
       {
-        q: 'Apa perbedaan utama paket Starter, Pro Team, dan Enterprise?',
-        a: 'Paket Starter gratis selamanya untuk tim kecil hingga 3 proyek. Paket Pro Team membuka proyek, tugas karyawan, tiket komplain klien, serta Test Scenario & Test Case QA tanpa batas dengan sinkronisasi cloud real-time. Paket Enterprise menambahkan dukungan multi-divisi, custom SLA, dan dedicated instance.'
+        q: 'Apakah Ruang Waktu berbayar?',
+        a: 'Selama masa beta, seluruh fitur yang tersedia dapat digunakan gratis. Paket Pro dan Enterprise sedang disiapkan (termasuk workspace tim bersama) dan belum dapat dibeli. Kami akan mengumumkan harga final sebelum ada penagihan apa pun.'
       }
     ];
 
@@ -1381,7 +1682,7 @@ export default function RuangWaktuApp() {
                 setScreenMode('workspace');
               }}
             >
-              <i aria-hidden="true">RW</i>
+              <i aria-hidden="true"><img src="/icon.png" alt="Ruang Waktu" width={34} height={34} /></i>
               <span className="brand-text">
                 <span>
                   ruang<b>waktu</b>
@@ -1394,7 +1695,6 @@ export default function RuangWaktuApp() {
               <a href="#fitur-utama">Fitur Unggulan</a>
               <a href="#perbandingan">Perbandingan</a>
               <a href="#paket-harga">Harga &amp; Paket</a>
-              <a href="#testimoni">Testimoni</a>
               <a href="#faq">FAQ</a>
             </nav>
 
@@ -1616,24 +1916,24 @@ export default function RuangWaktuApp() {
         <section className="landing-metrics-strip">
           <div className="landing-metrics-box">
             <div className="landing-metric-item">
-              <b>3.4x</b>
-              <span>Lebih Cepat Menangani Komplain</span>
-              <small>Dari laporan tiket klien ke penugasan developer tanpa miskomunikasi</small>
+              <b>1 klik</b>
+              <span>Test Case Gagal → Tiket Bug</span>
+              <small>Kode TC, proyek, dan prioritas terbawa otomatis ke tiket baru</small>
             </div>
             <div className="landing-metric-item">
-              <b>99.2%</b>
-              <span>Cakupan Regresi QA Terlacak</span>
-              <small>Setiap rilis diverifikasi melalui Test Scenario &amp; Test Case terstruktur</small>
+              <b>5 tahap</b>
+              <span>Status Tiket Klien</span>
+              <small>Open → Investigasi → Diperbaiki → Terverifikasi → Ditutup</small>
             </div>
             <div className="landing-metric-item">
-              <b>100%</b>
-              <span>Transparansi Beban Karyawan</span>
-              <small>Pantau siapa mengerjakan apa, di proyek mana, dan status review-nya</small>
+              <b>4 status</b>
+              <span>Hasil Uji QA</span>
+              <small>Pass, Fail, Blocked, dan Pending per Test Case</small>
             </div>
             <div className="landing-metric-item">
-              <b>&lt; 20ms</b>
-              <span>Arsitektur Hybrid Local + Cloud</span>
-              <small>Tetap instan saat offline dan tersinkronisasi ke PostgreSQL Supabase</small>
+              <b>JSON</b>
+              <span>Ekspor Data Kapan Saja</span>
+              <small>Data Anda tidak terkunci di dalam aplikasi</small>
             </div>
           </div>
         </section>
@@ -1833,11 +2133,11 @@ export default function RuangWaktuApp() {
         {/* 7. Pricing Plans with Monthly / Annual Toggle */}
         <section id="paket-harga" className="landing-section">
           <div className="landing-section-head">
-            <p className="eyebrow">INVESTASI TRANSPARAN</p>
-            <h2>Pilih Paket Langganan Sesuai Skala Tim</h2>
+            <p className="eyebrow">MASA BETA</p>
+            <h2>Gratis Selama Beta</h2>
             <p>
-              Mulai gratis tanpa batas waktu, dan tingkatkan ke paket Pro Team saat volume proyek,
-              tiket klien, dan skenario QA Anda berkembang.
+              Semua fitur yang sudah tersedia bisa dipakai tanpa biaya. Paket berbayar masih
+              disiapkan; harga di bawah adalah rencana dan belum dapat dibeli.
             </p>
             <div className="billing-toggle-wrap">
               <button
@@ -1859,38 +2159,30 @@ export default function RuangWaktuApp() {
 
           <div className="pricing-grid">
             <article className="pricing-card">
-              <b>Starter Studio</b>
+              <b>Beta</b>
               <small style={{ color: 'var(--text-secondary)' }}>
-                Untuk freelancer, mahasiswa &amp; tim rintisan kecil
+                Untuk satu akun: freelancer, QA, atau lead proyek
               </small>
               <div className="pricing-price">Gratis</div>
               <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                Selamanya · Tanpa kartu kredit
+                Tanpa kartu kredit
               </small>
               <ul className="pricing-list">
-                <li>✓ Hingga 3 Proyek Klien Aktif</li>
-                <li>✓ Papan Kanban &amp; Tabel Tugas Karyawan</li>
-                <li>✓ Maksimal 25 Tiket Komplain Klien / bln</li>
-                <li>✓ 5 Test Scenario &amp; 30 Test Case QA</li>
-                <li>✓ Penyimpanan Lokal Cepat + Ekspor JSON</li>
+                <li><Check size={14} aria-hidden="true" /> Proyek, tugas, dan tiket klien</li>
+                <li><Check size={14} aria-hidden="true" /> Test Scenario &amp; Test Case QA</li>
+                <li><Check size={14} aria-hidden="true" /> Konversi Test Case gagal menjadi tiket</li>
+                <li><Check size={14} aria-hidden="true" /> Penyimpanan cloud per akun + ekspor JSON</li>
+                <li><Check size={14} aria-hidden="true" /> Login email, Google, atau GitHub</li>
               </ul>
-              <button
-                className="button ghost"
-                type="button"
-                onClick={() => {
-                  setPrefs((p) => ({ ...p, plan: 'Starter' }));
-                  setScreenMode('workspace');
-                  pushToast('Paket Starter Aktif', 'Anda menggunakan paket Starter Studio.');
-                }}
-              >
-                Mulai dengan Starter
+              <button className="button primary" type="button" onClick={() => setScreenMode('register')}>
+                Daftar Gratis
               </button>
             </article>
 
-            <article className="pricing-card featured">
+            <article className="pricing-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <b>Pro Engineering &amp; QA</b>
-                <span className="badge">PALING DIREKOMENDASIKAN</span>
+                <b>Pro Tim</b>
+                <span className="badge">SEGERA HADIR</span>
               </div>
               <small style={{ color: 'var(--text-secondary)' }}>
                 Untuk software house, agensi digital &amp; tim produk
@@ -1898,126 +2190,42 @@ export default function RuangWaktuApp() {
               <div className="pricing-price">
                 {proPrice} <span style={{ fontSize: 13, fontWeight: 500 }}>/ bulan</span>
               </div>
-              <small style={{ color: 'var(--emerald)', fontSize: 12, fontWeight: 600 }}>
-                {billingCycle === 'annual'
-                  ? 'Ditagih tahunan (Hemat Rp 360.000/thn)'
-                  : 'Beralih ke tahunan untuk hemat 20%'}
+              <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                Rencana harga {billingCycle === 'annual' ? '(ditagih tahunan)' : '(bulanan)'} · belum dapat dibeli
               </small>
               <ul className="pricing-list">
-                <li>✓ Proyek &amp; Penugasan Karyawan Tanpa Batas</li>
-                <li>✓ Helpdesk Tiket Komplain Klien + Konversi Task 1-Klik</li>
-                <li>✓ CRUD Test Scenario (`TS`) &amp; Test Case (`TC`) Tak Terbatas</li>
-                <li>✓ Radar Telemetri QA Pass Rate &amp; Beban Tim</li>
-                <li>✓ Sinkronisasi Cloud PostgreSQL Supabase Real-time</li>
-                <li>✓ Login OAuth 2.0 (Google &amp; GitHub)</li>
+                <li><Check size={14} aria-hidden="true" /> Semua fitur Beta</li>
+                <li><Check size={14} aria-hidden="true" /> Workspace tim bersama &amp; undangan anggota</li>
+                <li><Check size={14} aria-hidden="true" /> Peran anggota (admin, anggota, klien)</li>
+                <li><Check size={14} aria-hidden="true" /> Riwayat perubahan status tiket</li>
               </ul>
-              <button
-                className="button primary"
-                type="button"
-                onClick={() => {
-                  setPrefs((p) => ({ ...p, plan: 'Pro' }));
-                  setScreenMode('workspace');
-                  pushToast('Paket Pro Team Aktif', 'Seluruh fitur proyek, tiket & QA telah terbuka.');
-                }}
-              >
-                Aktifkan Paket Pro Team →
+              <button className="button ghost" type="button" disabled>
+                Segera Hadir
               </button>
             </article>
 
             <article className="pricing-card">
-              <b>Enterprise Suite</b>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <b>Enterprise</b>
+                <span className="badge">SEGERA HADIR</span>
+              </div>
               <small style={{ color: 'var(--text-secondary)' }}>
-                Untuk korporasi multi-divisi &amp; regulasi ketat
+                Untuk organisasi multi-divisi
               </small>
               <div className="pricing-price">
                 {entPrice} <span style={{ fontSize: 13, fontWeight: 500 }}>/ bulan</span>
               </div>
               <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                Untuk seluruh organisasi tanpa batas kursi
+                Rencana harga · belum dapat dibeli
               </small>
               <ul className="pricing-list">
-                <li>✓ Seluruh Kapabilitas Paket Pro Engineering &amp; QA</li>
-                <li>✓ Multi-Workspace Divisi Terisolasi</li>
-                <li>✓ Dedicated Supabase PostgreSQL Instance &amp; Custom RLS</li>
-                <li>✓ Audit Trail Eksekusi QA &amp; SLA Prioritas 99.9%</li>
-                <li>✓ Pendampingan Onboarding &amp; Integrasi Custom</li>
+                <li><Check size={14} aria-hidden="true" /> Semua fitur Pro Tim</li>
+                <li><Check size={14} aria-hidden="true" /> Banyak workspace per divisi</li>
+                <li><Check size={14} aria-hidden="true" /> Pendampingan onboarding</li>
               </ul>
-              <button
-                className="button ghost"
-                type="button"
-                onClick={() => {
-                  setPrefs((p) => ({ ...p, plan: 'Enterprise' }));
-                  setScreenMode('workspace');
-                  pushToast('Paket Enterprise Aktif', 'Kapabilitas Enterprise telah diaktifkan.');
-                }}
-              >
-                Pilih Paket Enterprise
+              <button className="button ghost" type="button" disabled>
+                Segera Hadir
               </button>
-            </article>
-          </div>
-        </section>
-
-        {/* 8. Testimonials / Studi Kasus Tim */}
-        <section id="testimoni" className="landing-section">
-          <div className="landing-section-head">
-            <p className="eyebrow">DIPERCAYA TIM ENGINEERING &amp; QA</p>
-            <h2>Dampak Nyata di Lapangan</h2>
-            <p>
-              Bagaimana tim pengembang perangkat lunak merapikan alur komplain klien dan pengujian
-              kualitas mereka bersama RuangWaktu.
-            </p>
-          </div>
-
-          <div className="testimonial-grid">
-            <article className="testimonial-card">
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65 }}>
-                &ldquo;Sebelumnya komplain klien dari grup chat sering terlewat oleh programmer.
-                Sekarang setiap keluhan masuk ke Tiket Klien dan langsung dikonversi jadi task
-                karyawan dalam satu klik.&rdquo;
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="avatar">DK</span>
-                <div>
-                  <b style={{ display: 'block', fontSize: 13 }}>Dimas Kurniawan</b>
-                  <small style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                    VP of Engineering · NusaTech Software House
-                  </small>
-                </div>
-              </div>
-            </article>
-
-            <article className="testimonial-card">
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65 }}>
-                &ldquo;Modul Test Scenario dan Test Case-nya sangat bersih. Tim QA kami tidak lagi
-                memakai ribuan baris spreadsheet terpisah karena status Pass, Fail, dan Blocked
-                langsung terlihat di dashboard proyek.&rdquo;
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="avatar">SL</span>
-                <div>
-                  <b style={{ display: 'block', fontSize: 13 }}>Saraswati Lestari</b>
-                  <small style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                    Lead QA Engineer · FinCore Digital
-                  </small>
-                </div>
-              </div>
-            </article>
-
-            <article className="testimonial-card">
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65 }}>
-                &ldquo;Tampilan warna terang limestone-nya benar-benar teduh di mata meskipun dipakai
-                mantengin ratusan tiket dan test case seharian. Transisi ke mode gelapnya juga sangat
-                halus.&rdquo;
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="avatar">RP</span>
-                <div>
-                  <b style={{ display: 'block', fontSize: 13 }}>Reza Pramudya</b>
-                  <small style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                    Product Delivery Manager · Kreativa Studio
-                  </small>
-                </div>
-              </div>
             </article>
           </div>
         </section>
@@ -2099,7 +2307,7 @@ export default function RuangWaktuApp() {
           <div className="landing-footer-grid">
             <div className="landing-footer-col">
               <div className="brand" style={{ marginBottom: 10 }}>
-                <i aria-hidden="true">RW</i>
+                <i aria-hidden="true"><img src="/icon.png" alt="Ruang Waktu" width={34} height={34} /></i>
                 <span className="brand-text">
                   <span>
                     ruang<b>waktu</b>
@@ -2193,7 +2401,7 @@ export default function RuangWaktuApp() {
               }}
               style={{ padding: 0 }}
             >
-              <i aria-hidden="true">R</i>
+              <i aria-hidden="true"><img src="/icon.png" alt="Ruang Waktu" width={34} height={34} /></i>
               <span className="brand-text">
                 ruang<b>waktu</b>
               </span>
@@ -2217,20 +2425,29 @@ export default function RuangWaktuApp() {
               : 'Gunakan akun OAuth atau kredensial email kerja Anda.'}
           </p>
 
+          {!cloudAvailable && (
+            <p className="auth-notice" role="note">
+              Backend belum dikonfigurasi pada lingkungan ini, sehingga login tidak tersedia.
+              Anda tetap bisa mencoba aplikasi dalam <b>Mode Demo</b> (data tersimpan di browser ini saja).
+            </p>
+          )}
+
           <div className="oauth-grid">
             <button
               type="button"
               className="button ghost"
+              disabled={!cloudAvailable || authBusy}
               onClick={() => handleOAuthLogin('google')}
             >
-              <span>G</span> Lanjutkan Google
+              <GoogleLogo /> Google
             </button>
             <button
               type="button"
               className="button ghost"
+              disabled={!cloudAvailable || authBusy}
               onClick={() => handleOAuthLogin('github')}
             >
-              <span>⌘</span> Lanjutkan GitHub
+              <GitHubLogo /> GitHub
             </button>
           </div>
 
@@ -2240,49 +2457,68 @@ export default function RuangWaktuApp() {
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
-              const email = String(fd.get('email') || prefs.userEmail);
-              const name = String(fd.get('name') || prefs.userName);
-              if (isRegister && name) {
-                setPrefs((p) => ({
-                  ...p,
-                  userName: name,
-                  userEmail: email,
-                  userAvatar: name.slice(0, 2).toUpperCase(),
-                  isAuthenticated: true
-                }));
-              } else {
-                setPrefs((p) => ({ ...p, userEmail: email, isAuthenticated: true }));
-              }
-              setScreenMode('workspace');
-              pushToast(
-                isRegister ? 'Pendaftaran Berhasil' : 'Berhasil Masuk',
-                `Selamat datang kembali, ${isRegister ? name : prefs.userName}.`
-              );
+              const email = String(fd.get('email') || '').trim();
+              const password = String(fd.get('password') || '');
+              const name = String(fd.get('name') || '').trim();
+              void handleEmailAuth(isRegister ? 'register' : 'login', email, password, name);
             }}
             style={{ display: 'grid', gap: 12 }}
           >
             {isRegister && (
               <label className="field full">
                 <span>Nama lengkap</span>
-                <input name="name" required placeholder="Abil Mahendra" defaultValue={prefs.userName} />
+                <input name="name" required maxLength={80} autoComplete="name" placeholder="Nama Anda" />
               </label>
             )}
             <label className="field full">
               <span>Alamat email kerja</span>
               <input
+                id="auth-email"
                 name="email"
                 type="email"
                 required
+                maxLength={254}
+                autoComplete="email"
                 placeholder="nama@perusahaan.com"
-                defaultValue={prefs.userEmail}
               />
             </label>
             <label className="field full">
               <span>Kata sandi</span>
-              <input name="password" type="password" required placeholder="••••••••" defaultValue="password123" />
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={isRegister ? 8 : undefined}
+                maxLength={128}
+                autoComplete={isRegister ? 'new-password' : 'current-password'}
+                placeholder={isRegister ? 'Minimal 8 karakter' : '••••••••'}
+              />
             </label>
-            <button type="submit" className="button primary" style={{ width: '100%', marginTop: 6 }}>
-              {isRegister ? 'Daftar & Buka Workspace' : 'Masuk ke Workspace'}
+            {!isRegister && (
+              <button
+                type="button"
+                className="auth-link"
+                disabled={!cloudAvailable || authBusy}
+                onClick={() => {
+                  const el = document.getElementById('auth-email') as HTMLInputElement | null;
+                  void handleForgotPassword((el?.value || '').trim());
+                }}
+              >
+                Lupa kata sandi?
+              </button>
+            )}
+            {authMessage && (
+              <p className="auth-message" role="status" aria-live="polite">
+                {authMessage}
+              </p>
+            )}
+            <button
+              type="submit"
+              className="button primary"
+              disabled={!cloudAvailable || authBusy}
+              style={{ width: '100%', marginTop: 6 }}
+            >
+              {authBusy ? 'Memproses…' : isRegister ? 'Daftar & Buka Workspace' : 'Masuk ke Workspace'}
             </button>
           </form>
 
@@ -2290,7 +2526,10 @@ export default function RuangWaktuApp() {
             {isRegister ? 'Sudah punya akun? ' : 'Belum punya akun? '}
             <button
               type="button"
-              onClick={() => setScreenMode(isRegister ? 'login' : 'register')}
+              onClick={() => {
+                setAuthMessage('');
+                setScreenMode(isRegister ? 'login' : 'register');
+              }}
               style={{ border: 0, background: 'transparent', color: 'var(--emerald)', fontWeight: 600, padding: 0 }}
             >
               {isRegister ? 'Masuk di sini' : 'Daftar gratis'}
@@ -2337,7 +2576,7 @@ export default function RuangWaktuApp() {
               setView('dashboard');
             }}
           >
-            <i aria-hidden="true">RW</i>
+            <i aria-hidden="true"><img src="/icon.png" alt="Ruang Waktu" width={34} height={34} /></i>
             <span className="brand-text">
               <span>
                 ruang<b>waktu</b>
@@ -2384,8 +2623,8 @@ export default function RuangWaktuApp() {
             aria-haspopup="menu"
           >
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <Plus size={16} />
-              <span>+ Baru</span>
+              <PlusIcon size={16} />
+              <span>Baru</span>
             </span>
             <kbd>N</kbd>
           </button>
@@ -2393,27 +2632,45 @@ export default function RuangWaktuApp() {
           {quickCreateOpen && (
             <div className="quick-create-menu left-align" role="menu" aria-label="Pilih item baru">
               <button type="button" role="menuitem" onClick={() => openModal('ticket')}>
-                <span>🎫 Tiket Klien Baru</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                  <TicketsIcon size={16} style={{ color: 'var(--emerald)', flexShrink: 0 }} />
+                  <span>Tiket Klien Baru</span>
+                </span>
                 <small style={{ color: 'var(--text-muted)' }}>TKT</small>
               </button>
               <button type="button" role="menuitem" onClick={() => openModal('task')}>
-                <span>📋 Tugas Tim Baru</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                  <TasksIcon size={16} style={{ color: 'var(--emerald)', flexShrink: 0 }} />
+                  <span>Tugas Tim Baru</span>
+                </span>
                 <small style={{ color: 'var(--text-muted)' }}>Task</small>
               </button>
               <button type="button" role="menuitem" onClick={() => openModal('testcase')}>
-                <span>🧪 Test Case QA Baru</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                  <QAIcon size={16} style={{ color: 'var(--emerald)', flexShrink: 0 }} />
+                  <span>Test Case QA Baru</span>
+                </span>
                 <small style={{ color: 'var(--text-muted)' }}>TC</small>
               </button>
               <button type="button" role="menuitem" onClick={() => openModal('scenario')}>
-                <span>📂 Skenario Uji Baru</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                  <ScenarioIcon size={16} style={{ color: 'var(--emerald)', flexShrink: 0 }} />
+                  <span>Skenario Uji Baru</span>
+                </span>
                 <small style={{ color: 'var(--text-muted)' }}>TS</small>
               </button>
               <button type="button" role="menuitem" onClick={() => openModal('project')}>
-                <span>📁 Proyek Baru</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                  <ProjectsIcon size={16} style={{ color: 'var(--emerald)', flexShrink: 0 }} />
+                  <span>Proyek Baru</span>
+                </span>
                 <small style={{ color: 'var(--text-muted)' }}>Proyek</small>
               </button>
               <button type="button" role="menuitem" onClick={() => openModal('event')}>
-                <span>📅 Jadwal / Agenda</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                  <CalendarIcon size={16} style={{ color: 'var(--emerald)', flexShrink: 0 }} />
+                  <span>Jadwal / Agenda</span>
+                </span>
                 <small style={{ color: 'var(--text-muted)' }}>Kalender</small>
               </button>
             </div>
@@ -2428,11 +2685,12 @@ export default function RuangWaktuApp() {
             data-tooltip-pos="right"
             className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
             onClick={() => {
+              if (prefs.soundEffects) sound.playClick();
               setView('dashboard');
               setMobileSidebarOpen(false);
             }}
           >
-            <LayoutGrid size={17} />
+            <DashboardIcon size={17} />
             <span>Dashboard</span>
           </button>
 
@@ -2442,11 +2700,12 @@ export default function RuangWaktuApp() {
             data-tooltip-pos="right"
             className={`nav-item ${view === 'tickets' ? 'active' : ''}`}
             onClick={() => {
+              if (prefs.soundEffects) sound.playClick();
               setView('tickets');
               setMobileSidebarOpen(false);
             }}
           >
-            <Ticket size={17} />
+            <TicketsIcon size={17} />
             <span>Tiket</span>
             <b>{openTicketsCount}</b>
           </button>
@@ -2457,11 +2716,12 @@ export default function RuangWaktuApp() {
             data-tooltip-pos="right"
             className={`nav-item ${view === 'tasks' ? 'active' : ''}`}
             onClick={() => {
+              if (prefs.soundEffects) sound.playClick();
               setView('tasks');
               setMobileSidebarOpen(false);
             }}
           >
-            <CheckSquare size={17} />
+            <TasksIcon size={17} />
             <span>Tugas</span>
             <b>{openTasksCount}</b>
           </button>
@@ -2472,11 +2732,12 @@ export default function RuangWaktuApp() {
             data-tooltip-pos="right"
             className={`nav-item ${view === 'qa' ? 'active' : ''}`}
             onClick={() => {
+              if (prefs.soundEffects) sound.playClick();
               setView('qa');
               setMobileSidebarOpen(false);
             }}
           >
-            <ClipboardCheck size={17} />
+            <QAIcon size={17} />
             <span>Test Case</span>
             <b>{scopedTestCases.length}</b>
           </button>
@@ -2487,11 +2748,12 @@ export default function RuangWaktuApp() {
             data-tooltip-pos="right"
             className={`nav-item ${view === 'projects' ? 'active' : ''}`}
             onClick={() => {
+              if (prefs.soundEffects) sound.playClick();
               setView('projects');
               setMobileSidebarOpen(false);
             }}
           >
-            <FolderKanban size={17} />
+            <ProjectsIcon size={17} />
             <span>Proyek</span>
             <b>{state.projects.length}</b>
           </button>
@@ -2505,11 +2767,12 @@ export default function RuangWaktuApp() {
             data-tooltip-pos="right"
             className={`nav-item ${view === 'calendar' ? 'active' : ''}`}
             onClick={() => {
+              if (prefs.soundEffects) sound.playClick();
               setView('calendar');
               setMobileSidebarOpen(false);
             }}
           >
-            <Calendar size={17} />
+            <CalendarIcon size={17} />
             <span>Kalender</span>
           </button>
 
@@ -2519,11 +2782,12 @@ export default function RuangWaktuApp() {
             data-tooltip-pos="right"
             className={`nav-item ${view === 'insights' ? 'active' : ''}`}
             onClick={() => {
+              if (prefs.soundEffects) sound.playClick();
               setView('insights');
               setMobileSidebarOpen(false);
             }}
           >
-            <BarChart3 size={17} />
+            <AnalyticsIcon size={17} />
             <span>Laporan</span>
           </button>
         </div>
@@ -2549,11 +2813,12 @@ export default function RuangWaktuApp() {
             data-tooltip-pos="right"
             className={`nav-item ${view === 'settings' ? 'active' : ''}`}
             onClick={() => {
+              if (prefs.soundEffects) sound.playClick();
               setView('settings');
               setMobileSidebarOpen(false);
             }}
           >
-            <Settings size={17} />
+            <SettingsIcon size={17} />
             <span>Pengaturan</span>
           </button>
         </div>
@@ -2566,53 +2831,134 @@ export default function RuangWaktuApp() {
             <button
               type="button"
               className="mobile-menu-btn"
-              onClick={() => setMobileSidebarOpen(true)}
+              onClick={() => {
+                if (prefs.soundEffects) sound.playClick();
+                setMobileSidebarOpen(true);
+              }}
               aria-label="Buka menu navigasi"
             >
               <Menu size={18} />
             </button>
-            <span className="mobile-topbar-brand">
-              ruang<b>waktu</b>
+            <span className="mobile-topbar-brand" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <img src="/icon.png" alt="" width={22} height={22} style={{ borderRadius: 6 }} />
+              <span>ruang<b>waktu</b></span>
             </span>
           </div>
 
-          {/* Interactive Project Context Ribbon */}
+          {/* Interactive Project Context Ribbon: Max 2 displayed directly + Semua Proyek dropdown */}
           <div
             className="project-ribbon topbar-project-ribbon"
             role="tablist"
             aria-label="Filter Proyek"
           >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={globalProjectFilter === 'all'}
-              className={`project-pill ${globalProjectFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setGlobalProjectFilter('all')}
-            >
-              <span className="project-pill-dot" />
-              <span>Semua Proyek ({state.projects.length})</span>
-            </button>
-            {state.projects.map((p) => (
+            <div className="project-dropdown-container" ref={projectDropdownRef}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={globalProjectFilter === 'all'}
+                className={`project-pill ${globalProjectFilter === 'all' ? 'active' : ''}`}
+                onClick={() => {
+                  if (prefs.soundEffects) sound.playClick();
+                  setProjectDropdownOpen((prev) => !prev);
+                }}
+                title="Pilih dari daftar lengkap proyek"
+              >
+                <span className="project-pill-dot" />
+                <span>Semua Proyek ({state.projects.length})</span>
+                <ChevronDown size={13} style={{ opacity: 0.7, marginLeft: 2 }} />
+              </button>
+
+              {projectDropdownOpen && (
+                <div className="project-dropdown-popover" role="menu">
+                  <div className="project-dropdown-header">
+                    <span>Semua Proyek</span>
+                    <span>{state.projects.length} Total</span>
+                  </div>
+                  <button
+                    type="button"
+                    className={`project-dropdown-item ${globalProjectFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => {
+                      if (prefs.soundEffects) sound.playClick();
+                      setGlobalProjectFilter('all');
+                      setProjectDropdownOpen(false);
+                    }}
+                  >
+                    <div className="project-dropdown-item-left">
+                      <span className="project-pill-dot" />
+                      <span>Semua Proyek ({state.projects.length})</span>
+                    </div>
+                    {globalProjectFilter === 'all' && <CheckCircle2 size={14} color="var(--emerald)" />}
+                  </button>
+                  {state.projects.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`project-dropdown-item ${globalProjectFilter === p.name ? 'active' : ''}`}
+                      onClick={() => {
+                        if (prefs.soundEffects) sound.playClick();
+                        setGlobalProjectFilter(p.name);
+                        setProjectDropdownOpen(false);
+                      }}
+                    >
+                      <div className="project-dropdown-item-left">
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)' }} />
+                        <span title={p.name}>{p.name}</span>
+                      </div>
+                      {globalProjectFilter === p.name && <CheckCircle2 size={14} color="var(--emerald)" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Display at most 2 projects directly as requested */}
+            {state.projects.slice(0, 2).map((p) => (
               <button
                 key={p.id}
                 type="button"
                 role="tab"
                 aria-selected={globalProjectFilter === p.name}
                 className={`project-pill ${globalProjectFilter === p.name ? 'active' : ''}`}
-                onClick={() => setGlobalProjectFilter(p.name)}
+                onClick={() => {
+                  if (prefs.soundEffects) sound.playClick();
+                  setGlobalProjectFilter(p.name);
+                }}
               >
                 <span>{p.name}</span>
               </button>
             ))}
+
+            {/* If a project beyond the first 2 is currently selected, display it as active pill */}
+            {globalProjectFilter !== 'all' &&
+              !state.projects.slice(0, 2).some((p) => p.name === globalProjectFilter) && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  className="project-pill active"
+                  onClick={() => {
+                    if (prefs.soundEffects) sound.playClick();
+                    setGlobalProjectFilter('all');
+                  }}
+                  title="Klik untuk kembali ke Semua Proyek"
+                >
+                  <span className="project-pill-dot" />
+                  <span>{globalProjectFilter}</span>
+                  <X size={12} style={{ marginLeft: 4 }} />
+                </button>
+              )}
           </div>
 
           <div className="topbar-right">
             {/* Demo Data Privacy Label when not logged in */}
-            {!prefs.isAuthenticated && (
+            {!isAuthenticated && (
               <button
                 type="button"
                 className="demo-pill"
-                onClick={() => setScreenMode('login')}
+                onClick={() => {
+                  if (prefs.soundEffects) sound.playClick();
+                  setScreenMode('login');
+                }}
                 title="Data yang tampil adalah data simulasi/demo. Klik untuk masuk dengan akun kerja."
               >
                 <span>Mode Demo · Masuk</span>
@@ -2624,6 +2970,7 @@ export default function RuangWaktuApp() {
               className="search"
               type="button"
               onClick={() => {
+                if (prefs.soundEffects) sound.playClick();
                 setCmdQuery('');
                 setCmdIndex(0);
                 setCmdOpen(true);
@@ -2635,12 +2982,35 @@ export default function RuangWaktuApp() {
               <kbd>Ctrl K</kbd>
             </button>
 
+            {/* Click SFX Toggle */}
+            <button
+              className={`icon-btn audio-btn ${prefs.soundEffects ? 'active' : ''}`}
+              type="button"
+              data-tooltip={prefs.soundEffects ? 'Matikan Efek Suara' : 'Nyalakan Efek Suara Klik'}
+              data-tooltip-pos="bottom"
+              onClick={() => {
+                const next = !prefs.soundEffects;
+                setPrefs((p) => ({ ...p, soundEffects: next }));
+                if (next) sound.playClick();
+                pushToast(
+                  next ? 'Efek Suara Aktif' : 'Efek Suara Nonaktif',
+                  next ? 'Suara klik interaksi dinyalakan.' : 'Suara klik interaksi dimatikan.'
+                );
+              }}
+              aria-label="Toggle efek suara"
+            >
+              {prefs.soundEffects ? <VolumeIcon size={17} /> : <VolumeMuteIcon size={17} />}
+            </button>
+
             <button
               className="icon-btn theme-toggle-btn"
               type="button"
               data-tooltip={prefs.theme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}
               data-tooltip-pos="bottom"
-              onClick={(e) => toggleThemeWithAnimation(undefined, e.currentTarget)}
+              onClick={(e) => {
+                if (prefs.soundEffects) sound.playClick();
+                toggleThemeWithAnimation(undefined, e.currentTarget);
+              }}
               aria-label="Ubah tema tampilan"
             >
               {prefs.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
@@ -2778,12 +3148,16 @@ export default function RuangWaktuApp() {
                   <button
                     type="button"
                     onClick={() => {
-                      setAccountMenuOpen(false);
-                      setScreenMode('login');
+                      if (isAuthenticated) {
+                        void handleSignOut();
+                      } else {
+                        setAccountMenuOpen(false);
+                        setScreenMode('login');
+                      }
                     }}
                   >
                     <LogOut size={16} />
-                    <span>{prefs.isAuthenticated ? 'Keluar / Ganti Akun' : 'Masuk Akun Kerja'}</span>
+                    <span>{isAuthenticated ? 'Keluar' : 'Masuk Akun Kerja'}</span>
                   </button>
                 </div>
               )}
@@ -2814,7 +3188,7 @@ export default function RuangWaktuApp() {
                       <span className="badge">
                         {globalProjectFilter === 'all' ? 'Semua Proyek' : globalProjectFilter}
                       </span>
-                      {!prefs.isAuthenticated && (
+                      {!isAuthenticated && (
                         <span className="demo-pill">Data Demo</span>
                       )}
                     </div>
@@ -2830,8 +3204,8 @@ export default function RuangWaktuApp() {
                       type="button"
                       onClick={() => setQuickCreateOpen((o) => !o)}
                     >
-                      <Plus size={16} />
-                      <span>+ Baru (Pintasan: N)</span>
+                      <PlusIcon size={16} />
+                      <span>Baru (Pintasan: N)</span>
                     </button>
                     {ticketsApproachingSla.length > 0 ? (
                       <button
@@ -3735,1188 +4109,1164 @@ export default function RuangWaktuApp() {
             </section>
           )}
 
-        {/* ====================================================================
+          {/* ====================================================================
             VIEW 4: CLIENT TICKETS / COMPLAINTS
            ==================================================================== */}
-        {view === 'tickets' && (
-          <section className="view-enter">
-            <div className="heading">
-              <div>
-                <p className="eyebrow">HELPDESK &amp; PENANGANAN KELUHAN</p>
-                <h1>Tiket Komplain &amp; Bug Klien</h1>
-                <p>
-                  Kelola laporan komplain, bug, atau revisi klien melalui 5 tahap: Terbuka →
-                  Investigasi → Diperbaiki → Terverifikasi → Ditutup.
-                </p>
+          {view === 'tickets' && (
+            <section className="view-enter">
+              <div className="heading">
+                <div>
+                  <p className="eyebrow">HELPDESK &amp; PENANGANAN KELUHAN</p>
+                  <h1>Tiket Komplain &amp; Bug Klien</h1>
+                  <p>
+                    Kelola laporan komplain, bug, atau revisi klien melalui 5 tahap: Terbuka →
+                    Investigasi → Diperbaiki → Terverifikasi → Ditutup.
+                  </p>
+                </div>
+                <button className="button primary" type="button" onClick={() => openModal('ticket')}>
+                  + Catat Tiket Klien
+                </button>
               </div>
-              <button className="button primary" type="button" onClick={() => openModal('ticket')}>
-                + Catat Tiket Klien
-              </button>
-            </div>
 
-            {/* SLA Monitoring Banner */}
-            {(() => {
-              const todayStr = dateKey(today);
-              const warningTickets = state.tickets.filter((tk) => {
-                const sla = getTicketSlaInfo(tk, todayStr);
-                return sla.tone === 'warn' || sla.tone === 'breach';
-              });
-              return (
-                <article
-                  className="card"
-                  style={{
-                    marginBottom: 18,
-                    padding: '12px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    borderLeft: warningTickets.length
-                      ? '4px solid var(--amber)'
-                      : '4px solid var(--status-pass)'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {warningTickets.length ? (
-                      <AlertTriangle size={18} style={{ color: 'var(--amber)', flexShrink: 0 }} />
-                    ) : (
-                      <CheckCircle2
-                        size={18}
-                        style={{ color: 'var(--status-pass)', flexShrink: 0 }}
-                      />
-                    )}
-                    <div>
-                      <b style={{ fontSize: 13.5, display: 'block' }}>
-                        {warningTickets.length
-                          ? `${warningTickets.length} Tiket Mendekati / Melewati Batas SLA`
-                          : 'Semua Tiket Berada dalam Batas Waktu SLA'}
-                      </b>
-                      <small style={{ color: 'var(--text-secondary)', fontSize: 12.5 }}>
-                        {warningTickets.length
-                          ? warningTickets
+              {/* SLA Monitoring Banner */}
+              {(() => {
+                const todayStr = dateKey(today);
+                const warningTickets = state.tickets.filter((tk) => {
+                  const sla = getTicketSlaInfo(tk, todayStr);
+                  return sla.tone === 'warn' || sla.tone === 'breach';
+                });
+                return (
+                  <article
+                    className="card"
+                    style={{
+                      marginBottom: 18,
+                      padding: '12px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      borderLeft: warningTickets.length
+                        ? '4px solid var(--amber)'
+                        : '4px solid var(--status-pass)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {warningTickets.length ? (
+                        <AlertTriangle size={18} style={{ color: 'var(--amber)', flexShrink: 0 }} />
+                      ) : (
+                        <CheckCircle2
+                          size={18}
+                          style={{ color: 'var(--status-pass)', flexShrink: 0 }}
+                        />
+                      )}
+                      <div>
+                        <b style={{ fontSize: 13.5, display: 'block' }}>
+                          {warningTickets.length
+                            ? `${warningTickets.length} Tiket Mendekati / Melewati Batas SLA`
+                            : 'Semua Tiket Berada dalam Batas Waktu SLA'}
+                        </b>
+                        <small style={{ color: 'var(--text-secondary)', fontSize: 12.5 }}>
+                          {warningTickets.length
+                            ? warningTickets
                               .map((tk) => `${tk.code} (${getTicketSlaInfo(tk, todayStr).label})`)
                               .join(' · ')
-                          : 'Tidak ada tiket komplain klien yang melewati tenggat respons SLA saat ini.'}
-                      </small>
-                    </div>
-                  </div>
-                </article>
-              );
-            })()}
-
-            <article className="card">
-              <div className="toolbar">
-                <div className="filters">
-                  {(
-                    [
-                      ['all', 'Semua Tiket'],
-                      ['Open', TICKET_STATUS_LABEL['Open']],
-                      ['Investigasi', TICKET_STATUS_LABEL['Investigasi']],
-                      ['Diperbaiki', TICKET_STATUS_LABEL['Diperbaiki']],
-                      ['Terverifikasi', TICKET_STATUS_LABEL['Terverifikasi']],
-                      ['Ditutup', TICKET_STATUS_LABEL['Ditutup']]
-                    ] as const
-                  ).map(([val, label]) => (
-                    <button
-                      key={val}
-                      type="button"
-                      className={ticketFilter === val ? 'active' : ''}
-                      onClick={() => setTicketFilter(val)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="toolbar-inputs">
-                  <input
-                    type="search"
-                    className="input"
-                    placeholder="Cari kode TKT, klien, atau kata kunci…"
-                    value={ticketSearch}
-                    onChange={(e) => setTicketSearch(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="ticket-list">
-                {filteredTickets.length ? (
-                  filteredTickets.map((tk) => {
-                    const sla = getTicketSlaInfo(tk, dateKey(today));
-                    const linkedTask = state.tasks.find(
-                      (t) => t.id === tk.linkedTaskId || t.ticketCode === tk.code
-                    );
-                    const linkedTest = tk.linkedTestCaseCode
-                      ? state.testCases.find((tc) => tc.code === tk.linkedTestCaseCode)
-                      : undefined;
-                    const menuKey = `ticket-row-${tk.id}`;
-                    return (
-                      <div key={tk.id} className="ticket-row">
-                        <span className="ticket-code">{tk.code}</span>
-                        <div className="task-main">
-                          <button
-                            type="button"
-                            className="task-title-btn"
-                            onClick={() => openModal('ticket', tk)}
-                          >
-                            <b>{tk.title}</b>
-                          </button>
-                          <small>
-                            Klien: <strong>{tk.clientName}</strong> · Proyek: {tk.project} ·{' '}
-                            {tk.description}
-                          </small>
-                          <div className="trace-links">
-                            <span className={`sla-badge sla-${sla.tone}`}>{sla.label}</span>
-                            {linkedTask && (
-                              <button
-                                type="button"
-                                className="trace-chip"
-                                onClick={() => openModal('task', linkedTask)}
-                              >
-                                📋 Tugas: {linkedTask.title.slice(0, 26)}…
-                              </button>
-                            )}
-                            {tk.linkedTestCaseCode && (
-                              <button
-                                type="button"
-                                className="trace-chip"
-                                onClick={() => {
-                                  if (linkedTest) {
-                                    setSelectedScenarioId(linkedTest.scenarioId);
-                                    openModal('testcase', linkedTest);
-                                  } else {
-                                    setView('qa');
-                                  }
-                                }}
-                              >
-                                🧪 Uji: {tk.linkedTestCaseCode}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <span className="assignee-chip">
-                          <UserCheck size={13} />
-                          {tk.assignee}
-                        </span>
-                        <span className="badge">{tk.category}</span>
-                        <span className={`severity-pill severity-${tk.severity}`}>
-                          {PRIORITY_ICON[tk.severity]} {tk.severity}
-                        </span>
-                        <div
-                          className="status-dropdown-wrap"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            className={`status-trigger-btn status-${tk.status.replace(/\s+/g, '-')}`}
-                            onClick={() =>
-                              setOpenStatusMenuId((prev) =>
-                                prev === menuKey ? null : menuKey
-                              )
-                            }
-                          >
-                            <span>{TICKET_STATUS_LABEL[tk.status]}</span>
-                            <ChevronDown size={13} />
-                          </button>
-                          {openStatusMenuId === menuKey && (
-                            <div className="status-popover">
-                              {(
-                                [
-                                  'Open',
-                                  'Investigasi',
-                                  'Diperbaiki',
-                                  'Terverifikasi',
-                                  'Ditutup'
-                                ] as const
-                              ).map((st) => (
-                                <button
-                                  key={st}
-                                  type="button"
-                                  className={tk.status === st ? 'active' : ''}
-                                  onClick={() => {
-                                    setTicketStatus(tk.id, st);
-                                    setOpenStatusMenuId(null);
-                                  }}
-                                >
-                                  <span>{TICKET_STATUS_LABEL[st]}</span>
-                                  {tk.status === st && <span>✓</span>}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          className="button ghost small"
-                          onClick={() => convertTicketToTask(tk)}
-                        >
-                          {linkedTask ? 'Lihat Tugas →' : '+ Jadi Tugas'}
-                        </button>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="empty">Belum ada tiket komplain klien pada filter ini.</p>
-                )}
-              </div>
-            </article>
-          </section>
-        )}
-
-        {/* ====================================================================
-            VIEW 5: QA TEST SCENARIOS & TEST CASES (FULL CRUD)
-           ==================================================================== */}
-        {view === 'qa' && (
-          <section className="view-enter">
-            <div className="heading">
-              <div>
-                <p className="eyebrow">MANAJEMEN KUALITAS PERANGKAT LUNAK</p>
-                <h1>Test Case &amp; Skenario QA</h1>
-                <p>
-                  Pilih skenario pengujian di sebelah kiri untuk mengelola daftar Test Case,
-                  langkah pengujian, serta keterkaitan tiket bug dan tugas tim.
-                </p>
-              </div>
-              <div className="heading-actions">
-                <button
-                  className="button ghost"
-                  type="button"
-                  onClick={() => openModal('scenario')}
-                >
-                  + Skenario QA
-                </button>
-                <button
-                  className="button primary"
-                  type="button"
-                  onClick={() => openModal('testcase')}
-                >
-                  + Test Case Baru
-                </button>
-              </div>
-            </div>
-
-            <div className="qa-layout">
-              {/* Left Column: Test Scenarios */}
-              <article className="card">
-                <div className="card-head">
-                  <div>
-                    <p className="eyebrow">DAFTAR SKENARIO</p>
-                    <h2>{state.scenarios.length} Skenario QA</h2>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-btn"
-                    onClick={() => openModal('scenario')}
-                  >
-                    + Baru
-                  </button>
-                </div>
-                <div className="scenario-list">
-                  {state.scenarios.map((sc) => {
-                    const scCases = state.testCases.filter((tc) => tc.scenarioId === sc.id);
-                    const passCount = scCases.filter((tc) => tc.status === 'Pass').length;
-                    return (
-                      <div
-                        key={sc.id}
-                        className={`scenario-item ${activeScenario?.id === sc.id ? 'active' : ''}`}
-                        onClick={() => setSelectedScenarioId(sc.id)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <div className="scenario-item-top">
-                          <span className="ticket-code">{sc.code}</span>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <small style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                              {passCount} dari {scCases.length} Lulus
-                            </small>
-                            <button
-                              type="button"
-                              onClick={(ev) => {
-                                ev.stopPropagation();
-                                openModal('scenario', sc);
-                              }}
-                              style={{ border: 0, background: 'transparent', color: 'var(--text-muted)' }}
-                              title="Edit Skenario"
-                            >
-                              ⋯
-                            </button>
-                          </div>
-                        </div>
-                        <b>{sc.title}</b>
-                        <small>
-                          {sc.project} · {sc.moduleName}
+                            : 'Tidak ada tiket komplain klien yang melewati tenggat respons SLA saat ini.'}
                         </small>
                       </div>
-                    );
-                  })}
-                </div>
-              </article>
-
-              {/* Right Column: Test Cases for Active Scenario */}
-              <article className="card">
-                {activeScenario ? (
-                  <>
-                    <div className="card-head">
-                      <div>
-                        <p className="eyebrow">
-                          {activeScenario.project} · {activeScenario.moduleName}
-                        </p>
-                        <h2>
-                          {activeScenario.code}: {activeScenario.title}
-                        </h2>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          type="button"
-                          className="button ghost small"
-                          onClick={() => openModal('scenario', activeScenario)}
-                        >
-                          Ubah Skenario
-                        </button>
-                        <button
-                          className="button primary small"
-                          type="button"
-                          onClick={() => openModal('testcase')}
-                        >
-                          + Tambah Test Case
-                        </button>
-                      </div>
                     </div>
+                  </article>
+                );
+              })()}
 
-                    <div className="testcase-list">
-                      {activeScenarioCases.length ? (
-                        activeScenarioCases.map((tc) => {
-                          const linkedTicket = tc.linkedTicketCode
-                            ? state.tickets.find((tk) => tk.code === tc.linkedTicketCode)
-                            : undefined;
-                          const linkedTask = tc.linkedTaskId
-                            ? state.tasks.find((t) => t.id === tc.linkedTaskId)
-                            : state.tasks.find((t) => t.testCaseCode === tc.code);
-                          const menuKey = `qa-case-${tc.id}`;
-                          return (
-                            <div key={tc.id} className="testcase-card">
-                              <div className="testcase-head">
-                                <div
-                                  style={{ cursor: 'pointer', flex: 1 }}
-                                  onClick={() => openModal('testcase', tc)}
+              <article className="card">
+                <div className="toolbar">
+                  <div className="filters">
+                    {(
+                      [
+                        ['all', 'Semua Tiket'],
+                        ['Open', TICKET_STATUS_LABEL['Open']],
+                        ['Investigasi', TICKET_STATUS_LABEL['Investigasi']],
+                        ['Diperbaiki', TICKET_STATUS_LABEL['Diperbaiki']],
+                        ['Terverifikasi', TICKET_STATUS_LABEL['Terverifikasi']],
+                        ['Ditutup', TICKET_STATUS_LABEL['Ditutup']]
+                      ] as const
+                    ).map(([val, label]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        className={ticketFilter === val ? 'active' : ''}
+                        onClick={() => setTicketFilter(val)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="toolbar-inputs">
+                    <input
+                      type="search"
+                      className="input"
+                      placeholder="Cari kode TKT, klien, atau kata kunci…"
+                      value={ticketSearch}
+                      onChange={(e) => setTicketSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="ticket-list">
+                  {filteredTickets.length ? (
+                    filteredTickets.map((tk) => {
+                      const sla = getTicketSlaInfo(tk, dateKey(today));
+                      const linkedTask = state.tasks.find(
+                        (t) => t.id === tk.linkedTaskId || t.ticketCode === tk.code
+                      );
+                      const linkedTest = tk.linkedTestCaseCode
+                        ? state.testCases.find((tc) => tc.code === tk.linkedTestCaseCode)
+                        : undefined;
+                      const menuKey = `ticket-row-${tk.id}`;
+                      return (
+                        <div key={tk.id} className="ticket-row">
+                          <span className="ticket-code">{tk.code}</span>
+                          <div className="task-main">
+                            <button
+                              type="button"
+                              className="task-title-btn"
+                              onClick={() => openModal('ticket', tk)}
+                            >
+                              <b>{tk.title}</b>
+                            </button>
+                            <small>
+                              Klien: <strong>{tk.clientName}</strong> · Proyek: {tk.project} ·{' '}
+                              {tk.description}
+                            </small>
+                            <div className="trace-links">
+                              <span className={`sla-badge sla-${sla.tone}`}>{sla.label}</span>
+                              {linkedTask && (
+                                <button
+                                  type="button"
+                                  className="trace-chip"
+                                  onClick={() => openModal('task', linkedTask)}
                                 >
-                                  <div
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: 8,
-                                      marginBottom: 4,
-                                      flexWrap: 'wrap'
-                                    }}
-                                  >
-                                    <span className="ticket-code">{tc.code}</span>
-                                    <b style={{ fontSize: 15 }}>{tc.title}</b>
-                                    <span className={`priority ${tc.priority}`}>
-                                      {PRIORITY_ICON[tc.priority]} {tc.priority}
-                                    </span>
-                                  </div>
-                                  <small style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                                    Prasyarat: {tc.precondition || '-'} · Penguji:{' '}
-                                    <strong>{tc.tester}</strong>
-                                  </small>
-                                  {(tc.linkedTicketCode || linkedTask) && (
-                                    <div
-                                      className="trace-links"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      {tc.linkedTicketCode && (
-                                        <button
-                                          type="button"
-                                          className="trace-chip"
-                                          onClick={() => {
-                                            if (linkedTicket) openModal('ticket', linkedTicket);
-                                            else setView('tickets');
-                                          }}
-                                        >
-                                          🎫 Tiket: {tc.linkedTicketCode}
-                                        </button>
-                                      )}
-                                      {linkedTask && (
-                                        <button
-                                          type="button"
-                                          className="trace-chip"
-                                          onClick={() => openModal('task', linkedTask)}
-                                        >
-                                          📋 Tugas: {linkedTask.title.slice(0, 28)}…
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 8,
-                                    alignItems: 'center',
-                                    flexWrap: 'wrap'
+                                  📋 Tugas: {linkedTask.title.slice(0, 26)}…
+                                </button>
+                              )}
+                              {tk.linkedTestCaseCode && (
+                                <button
+                                  type="button"
+                                  className="trace-chip"
+                                  onClick={() => {
+                                    if (linkedTest) {
+                                      setSelectedScenarioId(linkedTest.scenarioId);
+                                      openModal('testcase', linkedTest);
+                                    } else {
+                                      setView('qa');
+                                    }
                                   }}
                                 >
-                                  {tc.status === 'Fail' && (
-                                    <button
-                                      type="button"
-                                      className="button ghost small"
-                                      style={{
-                                        borderColor: 'rgba(185, 28, 28, 0.35)',
-                                        color: 'var(--rose)'
-                                      }}
-                                      onClick={() => createTicketFromFailedTest(tc)}
-                                    >
-                                      {linkedTicket
-                                        ? `Lihat ${linkedTicket.code} →`
-                                        : '+ Buat Tiket Bug'}
-                                    </button>
-                                  )}
-
-                                  <div
-                                    className="status-dropdown-wrap"
-                                    onClick={(e) => e.stopPropagation()}
+                                  🧪 Uji: {tk.linkedTestCaseCode}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <span className="assignee-chip">
+                            <UserCheck size={13} />
+                            {tk.assignee}
+                          </span>
+                          <span className="badge">{tk.category}</span>
+                          <span className={`severity-pill severity-${tk.severity}`}>
+                            {PRIORITY_ICON[tk.severity]} {tk.severity}
+                          </span>
+                          <div
+                            className="status-dropdown-wrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className={`status-trigger-btn status-${tk.status.replace(/\s+/g, '-')}`}
+                              onClick={() =>
+                                setOpenStatusMenuId((prev) =>
+                                  prev === menuKey ? null : menuKey
+                                )
+                              }
+                            >
+                              <span>{TICKET_STATUS_LABEL[tk.status]}</span>
+                              <ChevronDown size={13} />
+                            </button>
+                            {openStatusMenuId === menuKey && (
+                              <div className="status-popover">
+                                {(
+                                  [
+                                    'Open',
+                                    'Investigasi',
+                                    'Diperbaiki',
+                                    'Terverifikasi',
+                                    'Ditutup'
+                                  ] as const
+                                ).map((st) => (
+                                  <button
+                                    key={st}
+                                    type="button"
+                                    className={tk.status === st ? 'active' : ''}
+                                    onClick={() => {
+                                      setTicketStatus(tk.id, st);
+                                      setOpenStatusMenuId(null);
+                                    }}
                                   >
-                                    <button
-                                      type="button"
-                                      className={`status-trigger-btn qa-${tc.status}`}
-                                      onClick={() =>
-                                        setOpenStatusMenuId((prev) =>
-                                          prev === menuKey ? null : menuKey
-                                        )
-                                      }
+                                    <span>{TICKET_STATUS_LABEL[st]}</span>
+                                    {tk.status === st && <span>✓</span>}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            className="button ghost small"
+                            onClick={() => convertTicketToTask(tk)}
+                          >
+                            {linkedTask ? 'Lihat Tugas →' : '+ Jadi Tugas'}
+                          </button>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="empty">Belum ada tiket komplain klien pada filter ini.</p>
+                  )}
+                </div>
+              </article>
+            </section>
+          )}
+
+          {/* ====================================================================
+            VIEW 5: QA TEST SCENARIOS & TEST CASES (FULL CRUD)
+           ==================================================================== */}
+          {view === 'qa' && (
+            <section className="view-enter">
+              <div className="heading">
+                <div>
+                  <p className="eyebrow">MANAJEMEN KUALITAS PERANGKAT LUNAK</p>
+                  <h1>Test Case &amp; Skenario QA</h1>
+                  <p>
+                    Pilih skenario pengujian di sebelah kiri untuk mengelola daftar Test Case,
+                    langkah pengujian, serta keterkaitan tiket bug dan tugas tim.
+                  </p>
+                </div>
+                <div className="heading-actions">
+                  <button
+                    className="button ghost"
+                    type="button"
+                    onClick={() => openModal('scenario')}
+                  >
+                    + Skenario QA
+                  </button>
+                  <button
+                    className="button primary"
+                    type="button"
+                    onClick={() => openModal('testcase')}
+                  >
+                    + Test Case Baru
+                  </button>
+                </div>
+              </div>
+
+              <div className="qa-layout">
+                {/* Left Column: Test Scenarios */}
+                <article className="card">
+                  <div className="card-head">
+                    <div>
+                      <p className="eyebrow">DAFTAR SKENARIO</p>
+                      <h2>{state.scenarios.length} Skenario QA</h2>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-btn"
+                      onClick={() => openModal('scenario')}
+                    >
+                      + Baru
+                    </button>
+                  </div>
+                  <div className="scenario-list">
+                    {state.scenarios.map((sc) => {
+                      const scCases = state.testCases.filter((tc) => tc.scenarioId === sc.id);
+                      const passCount = scCases.filter((tc) => tc.status === 'Pass').length;
+                      return (
+                        <div
+                          key={sc.id}
+                          className={`scenario-item ${activeScenario?.id === sc.id ? 'active' : ''}`}
+                          onClick={() => setSelectedScenarioId(sc.id)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <div className="scenario-item-top">
+                            <span className="ticket-code">{sc.code}</span>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <small style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                                {passCount} dari {scCases.length} Lulus
+                              </small>
+                              <button
+                                type="button"
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
+                                  openModal('scenario', sc);
+                                }}
+                                style={{ border: 0, background: 'transparent', color: 'var(--text-muted)' }}
+                                title="Edit Skenario"
+                              >
+                                ⋯
+                              </button>
+                            </div>
+                          </div>
+                          <b>{sc.title}</b>
+                          <small>
+                            {sc.project} · {sc.moduleName}
+                          </small>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+
+                {/* Right Column: Test Cases for Active Scenario */}
+                <article className="card">
+                  {activeScenario ? (
+                    <>
+                      <div className="card-head">
+                        <div>
+                          <p className="eyebrow">
+                            {activeScenario.project} · {activeScenario.moduleName}
+                          </p>
+                          <h2>
+                            {activeScenario.code}: {activeScenario.title}
+                          </h2>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            type="button"
+                            className="button ghost small"
+                            onClick={() => openModal('scenario', activeScenario)}
+                          >
+                            Ubah Skenario
+                          </button>
+                          <button
+                            className="button primary small"
+                            type="button"
+                            onClick={() => openModal('testcase')}
+                          >
+                            + Tambah Test Case
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="testcase-list">
+                        {activeScenarioCases.length ? (
+                          activeScenarioCases.map((tc) => {
+                            const linkedTicket = tc.linkedTicketCode
+                              ? state.tickets.find((tk) => tk.code === tc.linkedTicketCode)
+                              : undefined;
+                            const linkedTask = tc.linkedTaskId
+                              ? state.tasks.find((t) => t.id === tc.linkedTaskId)
+                              : state.tasks.find((t) => t.testCaseCode === tc.code);
+                            const menuKey = `qa-case-${tc.id}`;
+                            return (
+                              <div key={tc.id} className="testcase-card">
+                                <div className="testcase-head">
+                                  <div
+                                    style={{ cursor: 'pointer', flex: 1 }}
+                                    onClick={() => openModal('testcase', tc)}
+                                  >
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        marginBottom: 4,
+                                        flexWrap: 'wrap'
+                                      }}
                                     >
-                                      <span>{QA_STATUS_LABEL[tc.status]}</span>
-                                      <ChevronDown size={13} />
-                                    </button>
-                                    {openStatusMenuId === menuKey && (
-                                      <div className="status-popover">
-                                        {(['Pass', 'Fail', 'Blocked', 'Pending'] as const).map(
-                                          (st) => (
-                                            <button
-                                              key={st}
-                                              type="button"
-                                              className={tc.status === st ? 'active' : ''}
-                                              onClick={() => {
-                                                updateTestCaseStatus(tc.id, st);
-                                                setOpenStatusMenuId(null);
-                                              }}
-                                            >
-                                              <span>{QA_STATUS_LABEL[st]}</span>
-                                              {tc.status === st && <span>✓</span>}
-                                            </button>
-                                          )
+                                      <span className="ticket-code">{tc.code}</span>
+                                      <b style={{ fontSize: 15 }}>{tc.title}</b>
+                                      <span className={`priority ${tc.priority}`}>
+                                        {PRIORITY_ICON[tc.priority]} {tc.priority}
+                                      </span>
+                                    </div>
+                                    <small style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                                      Prasyarat: {tc.precondition || '-'} · Penguji:{' '}
+                                      <strong>{tc.tester}</strong>
+                                    </small>
+                                    {(tc.linkedTicketCode || linkedTask) && (
+                                      <div
+                                        className="trace-links"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {tc.linkedTicketCode && (
+                                          <button
+                                            type="button"
+                                            className="trace-chip"
+                                            onClick={() => {
+                                              if (linkedTicket) openModal('ticket', linkedTicket);
+                                              else setView('tickets');
+                                            }}
+                                          >
+                                            🎫 Tiket: {tc.linkedTicketCode}
+                                          </button>
+                                        )}
+                                        {linkedTask && (
+                                          <button
+                                            type="button"
+                                            className="trace-chip"
+                                            onClick={() => openModal('task', linkedTask)}
+                                          >
+                                            📋 Tugas: {linkedTask.title.slice(0, 28)}…
+                                          </button>
                                         )}
                                       </div>
                                     )}
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    className="button ghost small"
-                                    onClick={() => openModal('testcase', tc)}
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      gap: 8,
+                                      alignItems: 'center',
+                                      flexWrap: 'wrap'
+                                    }}
                                   >
-                                    Edit
-                                  </button>
-                                </div>
-                              </div>
+                                    {tc.status === 'Fail' && (
+                                      <button
+                                        type="button"
+                                        className="button ghost small"
+                                        style={{
+                                          borderColor: 'rgba(185, 28, 28, 0.35)',
+                                          color: 'var(--rose)'
+                                        }}
+                                        onClick={() => createTicketFromFailedTest(tc)}
+                                      >
+                                        {linkedTicket
+                                          ? `Lihat ${linkedTicket.code} →`
+                                          : '+ Buat Tiket Bug'}
+                                      </button>
+                                    )}
 
-                              <div className="testcase-steps">
-                                <div>
-                                  <b>LANGKAH PENGUJIAN</b>
-                                  <p>{tc.steps || '-'}</p>
+                                    <div
+                                      className="status-dropdown-wrap"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <button
+                                        type="button"
+                                        className={`status-trigger-btn qa-${tc.status}`}
+                                        onClick={() =>
+                                          setOpenStatusMenuId((prev) =>
+                                            prev === menuKey ? null : menuKey
+                                          )
+                                        }
+                                      >
+                                        <span>{QA_STATUS_LABEL[tc.status]}</span>
+                                        <ChevronDown size={13} />
+                                      </button>
+                                      {openStatusMenuId === menuKey && (
+                                        <div className="status-popover">
+                                          {(['Pass', 'Fail', 'Blocked', 'Pending'] as const).map(
+                                            (st) => (
+                                              <button
+                                                key={st}
+                                                type="button"
+                                                className={tc.status === st ? 'active' : ''}
+                                                onClick={() => {
+                                                  updateTestCaseStatus(tc.id, st);
+                                                  setOpenStatusMenuId(null);
+                                                }}
+                                              >
+                                                <span>{QA_STATUS_LABEL[st]}</span>
+                                                {tc.status === st && <span>✓</span>}
+                                              </button>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      className="button ghost small"
+                                      onClick={() => openModal('testcase', tc)}
+                                    >
+                                      Edit
+                                    </button>
+                                  </div>
                                 </div>
-                                <div>
-                                  <b>HASIL DIHARAPKAN vs AKTUAL</b>
-                                  <p>
-                                    <strong>Ekspektasi:</strong> {tc.expectedResult || '-'}
-                                  </p>
-                                  {tc.actualResult && (
-                                    <p style={{ marginTop: 4, color: 'var(--text-secondary)' }}>
-                                      <strong>Aktual:</strong> {tc.actualResult}
+
+                                <div className="testcase-steps">
+                                  <div>
+                                    <b>LANGKAH PENGUJIAN</b>
+                                    <p>{tc.steps || '-'}</p>
+                                  </div>
+                                  <div>
+                                    <b>HASIL DIHARAPKAN vs AKTUAL</b>
+                                    <p>
+                                      <strong>Ekspektasi:</strong> {tc.expectedResult || '-'}
                                     </p>
-                                  )}
+                                    {tc.actualResult && (
+                                      <p style={{ marginTop: 4, color: 'var(--text-secondary)' }}>
+                                        <strong>Aktual:</strong> {tc.actualResult}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <p className="empty">
-                          Belum ada Test Case pada skenario ini. Klik &quot;+ Tambah Test Case&quot;
-                          untuk mulai mendokumentasikan pengujian.
-                        </p>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <p className="empty">Pilih atau buat Skenario QA terlebih dahulu.</p>
-                )}
-              </article>
-            </div>
-          </section>
-        )}
+                            );
+                          })
+                        ) : (
+                          <p className="empty">
+                            Belum ada Test Case pada skenario ini. Klik &quot;+ Tambah Test Case&quot;
+                            untuk mulai mendokumentasikan pengujian.
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="empty">Pilih atau buat Skenario QA terlebih dahulu.</p>
+                  )}
+                </article>
+              </div>
+            </section>
+          )}
 
-        {/* ====================================================================
+          {/* ====================================================================
             VIEW 6: CALENDAR SPRINT & RELEASE
            ==================================================================== */}
-        {view === 'calendar' && (
-          <section className="view-enter">
-            <div className="heading">
-              <div>
-                <p className="eyebrow">JADWAL TIM &amp; RILIS</p>
-                <h1>Kalender Sprint &amp; Deployment</h1>
-                <p>Pantau jadwal rapat klien, sesi UAT, dan tenggat rilis proyek.</p>
+          {view === 'calendar' && (
+            <section className="view-enter">
+              <div className="heading">
+                <div>
+                  <p className="eyebrow">JADWAL TIM &amp; RILIS</p>
+                  <h1>Kalender Sprint &amp; Deployment</h1>
+                  <p>Pantau jadwal rapat klien, sesi UAT, dan tenggat rilis proyek.</p>
+                </div>
+                <div className="heading-actions">
+                  <button
+                    className="button ghost"
+                    type="button"
+                    onClick={() => setSelectedDate(new Date(today))}
+                  >
+                    Bulan ini
+                  </button>
+                  <button className="button primary" type="button" onClick={() => openModal('event')}>
+                    + Jadwal baru
+                  </button>
+                </div>
               </div>
-              <div className="heading-actions">
+
+              <article className="card">
+                <div className="card-head">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button
+                      type="button"
+                      className="button ghost small"
+                      onClick={() =>
+                        setSelectedDate(
+                          new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1)
+                        )
+                      }
+                    >
+                      ←
+                    </button>
+                    <h2>{fmtDate(selectedDate, { month: 'long', year: 'numeric' })}</h2>
+                    <button
+                      type="button"
+                      className="button ghost small"
+                      onClick={() =>
+                        setSelectedDate(
+                          new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1)
+                        )
+                      }
+                    >
+                      →
+                    </button>
+                  </div>
+                  <span className="badge">Klik tanggal untuk detail</span>
+                </div>
+
+                <div className="calendar-grid">
+                  {(prefs.startMonday !== false
+                    ? ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
+                    : ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
+                  ).map((w) => (
+                    <span key={w} className="calendar-dow">
+                      {w}
+                    </span>
+                  ))}
+
+                  {calendarGrid.map((d) => {
+                    const k = dateKey(d);
+                    const evs = state.events.filter((e) => e.date === k);
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        className={`calendar-day ${d.getMonth() !== selectedDate.getMonth() ? 'other' : ''
+                          } ${k === dateKey(today) ? 'current' : ''}`}
+                        onClick={() => {
+                          setSelectedDate(new Date(k + 'T00:00:00'));
+                          setView('dashboard');
+                        }}
+                      >
+                        <span className="calendar-day-num">{d.getDate()}</span>
+                        {evs.slice(0, 2).map((e) => (
+                          <div key={e.id} className="calendar-event">
+                            {formatTimeDisplay(e.startTime)} {e.title}
+                          </div>
+                        ))}
+                      </button>
+                    );
+                  })}
+                </div>
+              </article>
+            </section>
+          )}
+
+          {/* ====================================================================
+            VIEW 7: INSIGHTS & QA / TEAM REPORTS
+           ==================================================================== */}
+          {view === 'insights' && (
+            <section className="view-enter">
+              <div className="heading">
+                <div>
+                  <p className="eyebrow">ANALITIK TIM &amp; KUALITAS</p>
+                  <h1>Laporan &amp; SLA Tim</h1>
+                  <p>Ringkasan performa penyelesaian tugas tim, tiket klien, dan metrik QA.</p>
+                </div>
+              </div>
+
+              <article className="card insight">
+                <div>
+                  <span>PENYELESAIAN TUGAS</span>
+                  <b>
+                    {state.tasks.filter((t) => t.completed).length} dari {state.tasks.length}
+                  </b>
+                </div>
+                <div>
+                  <span>TIKET TERATASI</span>
+                  <b>
+                    {
+                      state.tickets.filter(
+                        (tk) =>
+                          tk.status === 'Diperbaiki' ||
+                          tk.status === 'Terverifikasi' ||
+                          tk.status === 'Ditutup'
+                      ).length
+                    }{' '}
+                    dari {state.tickets.length}
+                  </b>
+                </div>
+                <div>
+                  <span>KELULUSAN QA</span>
+                  <b>
+                    {state.testCases.filter((tc) => tc.status === 'Pass').length} dari{' '}
+                    {state.testCases.length} ({qaPassRate}%)
+                  </b>
+                </div>
+                <div>
+                  <span>TEST CASE GAGAL</span>
+                  <b>{state.testCases.filter((tc) => tc.status === 'Fail').length} kasus</b>
+                </div>
+              </article>
+
+              <div className="insights-grid">
+                <article className="card">
+                  <div className="card-head">
+                    <div>
+                      <p className="eyebrow">METRIK PENGUJIAN</p>
+                      <h2>Status Eksekusi Test Case QA</h2>
+                    </div>
+                  </div>
+                  <div className="breakdown-list">
+                    {(['Pass', 'Fail', 'Blocked', 'Pending'] as const).map((st) => {
+                      const count = state.testCases.filter((tc) => tc.status === st).length;
+                      const pct = state.testCases.length
+                        ? Math.round((count / state.testCases.length) * 100)
+                        : 0;
+                      return (
+                        <div key={st} className="breakdown-item">
+                          <div className="breakdown-head">
+                            <b>{QA_STATUS_LABEL[st]}</b>
+                            <span>
+                              {count} dari {state.testCases.length} Test Case ({pct}%)
+                            </span>
+                          </div>
+                          <div className="progress">
+                            <span style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+
+                <article className="card">
+                  <div className="card-head">
+                    <div>
+                      <p className="eyebrow">PRODUKTIVITAS TIM</p>
+                      <h2>Distribusi Beban Tugas per Anggota</h2>
+                    </div>
+                  </div>
+                  <div className="breakdown-list">
+                    {Array.from(new Set(state.tasks.map((t) => t.assignee))).map((person) => {
+                      const personTasks = state.tasks.filter((t) => t.assignee === person);
+                      const done = personTasks.filter((t) => t.completed).length;
+                      const pct = personTasks.length
+                        ? Math.round((done / personTasks.length) * 100)
+                        : 0;
+                      return (
+                        <div key={person} className="breakdown-item">
+                          <div className="breakdown-head">
+                            <b>{person}</b>
+                            <span>
+                              {done} dari {personTasks.length} tugas selesai ({pct}%)
+                            </span>
+                          </div>
+                          <div className="progress">
+                            <span style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+              </div>
+            </section>
+          )}
+
+          {/* ====================================================================
+            VIEW 8: DEDICATED NOTIFICATION LIST PAGE
+           ==================================================================== */}
+          {view === 'notifications' && (
+            <section className="view-enter">
+              <div className="heading">
+                <div>
+                  <p className="eyebrow">AKTIVITAS &amp; PERINGATAN</p>
+                  <h1>Pusat Notifikasi</h1>
+                  <p>
+                    Seluruh riwayat tiket komplain klien, peringatan SLA, pembaruan hasil uji QA, dan
+                    pengingat tugas tim.
+                  </p>
+                </div>
                 <button
                   className="button ghost"
                   type="button"
-                  onClick={() => setSelectedDate(new Date(today))}
+                  onClick={markAllNotificationsRead}
                 >
-                  Bulan ini
-                </button>
-                <button className="button primary" type="button" onClick={() => openModal('event')}>
-                  + Jadwal baru
+                  ✓ Tandai semua sudah dibaca
                 </button>
               </div>
-            </div>
-
-            <article className="card">
-              <div className="card-head">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button
-                    type="button"
-                    className="button ghost small"
-                    onClick={() =>
-                      setSelectedDate(
-                        new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1)
-                      )
-                    }
-                  >
-                    ←
-                  </button>
-                  <h2>{fmtDate(selectedDate, { month: 'long', year: 'numeric' })}</h2>
-                  <button
-                    type="button"
-                    className="button ghost small"
-                    onClick={() =>
-                      setSelectedDate(
-                        new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1)
-                      )
-                    }
-                  >
-                    →
-                  </button>
-                </div>
-                <span className="badge">Klik tanggal untuk detail</span>
-              </div>
-
-              <div className="calendar-grid">
-                {(prefs.startMonday !== false
-                  ? ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
-                  : ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
-                ).map((w) => (
-                  <span key={w} className="calendar-dow">
-                    {w}
-                  </span>
-                ))}
-
-                {calendarGrid.map((d) => {
-                  const k = dateKey(d);
-                  const evs = state.events.filter((e) => e.date === k);
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      className={`calendar-day ${
-                        d.getMonth() !== selectedDate.getMonth() ? 'other' : ''
-                      } ${k === dateKey(today) ? 'current' : ''}`}
-                      onClick={() => {
-                        setSelectedDate(new Date(k + 'T00:00:00'));
-                        setView('dashboard');
-                      }}
-                    >
-                      <span className="calendar-day-num">{d.getDate()}</span>
-                      {evs.slice(0, 2).map((e) => (
-                        <div key={e.id} className="calendar-event">
-                          {formatTimeDisplay(e.startTime)} {e.title}
-                        </div>
-                      ))}
-                    </button>
-                  );
-                })}
-              </div>
-            </article>
-          </section>
-        )}
-
-        {/* ====================================================================
-            VIEW 7: INSIGHTS & QA / TEAM REPORTS
-           ==================================================================== */}
-        {view === 'insights' && (
-          <section className="view-enter">
-            <div className="heading">
-              <div>
-                <p className="eyebrow">ANALITIK TIM &amp; KUALITAS</p>
-                <h1>Laporan &amp; SLA Tim</h1>
-                <p>Ringkasan performa penyelesaian tugas tim, tiket klien, dan metrik QA.</p>
-              </div>
-            </div>
-
-            <article className="card insight">
-              <div>
-                <span>PENYELESAIAN TUGAS</span>
-                <b>
-                  {state.tasks.filter((t) => t.completed).length} dari {state.tasks.length}
-                </b>
-              </div>
-              <div>
-                <span>TIKET TERATASI</span>
-                <b>
-                  {
-                    state.tickets.filter(
-                      (tk) =>
-                        tk.status === 'Diperbaiki' ||
-                        tk.status === 'Terverifikasi' ||
-                        tk.status === 'Ditutup'
-                    ).length
-                  }{' '}
-                  dari {state.tickets.length}
-                </b>
-              </div>
-              <div>
-                <span>KELULUSAN QA</span>
-                <b>
-                  {state.testCases.filter((tc) => tc.status === 'Pass').length} dari{' '}
-                  {state.testCases.length} ({qaPassRate}%)
-                </b>
-              </div>
-              <div>
-                <span>TEST CASE GAGAL</span>
-                <b>{state.testCases.filter((tc) => tc.status === 'Fail').length} kasus</b>
-              </div>
-            </article>
-
-            <div className="insights-grid">
-              <article className="card">
-                <div className="card-head">
-                  <div>
-                    <p className="eyebrow">METRIK PENGUJIAN</p>
-                    <h2>Status Eksekusi Test Case QA</h2>
-                  </div>
-                </div>
-                <div className="breakdown-list">
-                  {(['Pass', 'Fail', 'Blocked', 'Pending'] as const).map((st) => {
-                    const count = state.testCases.filter((tc) => tc.status === st).length;
-                    const pct = state.testCases.length
-                      ? Math.round((count / state.testCases.length) * 100)
-                      : 0;
-                    return (
-                      <div key={st} className="breakdown-item">
-                        <div className="breakdown-head">
-                          <b>{QA_STATUS_LABEL[st]}</b>
-                          <span>
-                            {count} dari {state.testCases.length} Test Case ({pct}%)
-                          </span>
-                        </div>
-                        <div className="progress">
-                          <span style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </article>
 
               <article className="card">
-                <div className="card-head">
-                  <div>
-                    <p className="eyebrow">PRODUKTIVITAS TIM</p>
-                    <h2>Distribusi Beban Tugas per Anggota</h2>
+                <div className="toolbar" style={{ marginBottom: 0 }}>
+                  <div className="filters">
+                    {(
+                      [
+                        ['all', 'Semua'],
+                        ['unread', 'Belum Dibaca'],
+                        ['sla', 'Peringatan SLA'],
+                        ['ticket', 'Tiket Klien'],
+                        ['qa', 'Hasil QA']
+                      ] as const
+                    ).map(([val, label]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        className={notifFilter === val ? 'active' : ''}
+                        onClick={() => setNotifFilter(val)}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <div className="breakdown-list">
-                  {Array.from(new Set(state.tasks.map((t) => t.assignee))).map((person) => {
-                    const personTasks = state.tasks.filter((t) => t.assignee === person);
-                    const done = personTasks.filter((t) => t.completed).length;
-                    const pct = personTasks.length
-                      ? Math.round((done / personTasks.length) * 100)
-                      : 0;
-                    return (
-                      <div key={person} className="breakdown-item">
-                        <div className="breakdown-head">
-                          <b>{person}</b>
-                          <span>
-                            {done} dari {personTasks.length} tugas selesai ({pct}%)
-                          </span>
+
+                <div>
+                  {state.notifications
+                    .filter(
+                      (n) =>
+                        notifFilter === 'all' ||
+                        (notifFilter === 'unread' && !n.read) ||
+                        n.category === notifFilter
+                    )
+                    .map((n) => (
+                      <div
+                        key={n.id}
+                        className={`notif-item ${n.read ? 'read' : 'unread'}`}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          persistState({
+                            ...state,
+                            notifications: state.notifications.map((x) =>
+                              x.id === n.id ? { ...x, read: true } : x
+                            )
+                          });
+                          if (n.targetView) setView(n.targetView);
+                        }}
+                      >
+                        <span className="notif-dot" />
+                        <div style={{ flex: 1 }}>
+                          <b>{n.title}</b>
+                          <p>{n.description}</p>
+                          <small>{n.time}</small>
                         </div>
-                        <div className="progress">
-                          <span style={{ width: `${pct}%` }} />
-                        </div>
+                        {n.targetView && (
+                          <span className="button ghost small">Buka →</span>
+                        )}
                       </div>
-                    );
-                  })}
+                    ))}
                 </div>
               </article>
-            </div>
-          </section>
-        )}
+            </section>
+          )}
 
-        {/* ====================================================================
-            VIEW 8: DEDICATED NOTIFICATION LIST PAGE
-           ==================================================================== */}
-        {view === 'notifications' && (
-          <section className="view-enter">
-            <div className="heading">
-              <div>
-                <p className="eyebrow">AKTIVITAS &amp; PERINGATAN</p>
-                <h1>Pusat Notifikasi</h1>
-                <p>
-                  Seluruh riwayat tiket komplain klien, peringatan SLA, pembaruan hasil uji QA, dan
-                  pengingat tugas tim.
-                </p>
-              </div>
-              <button
-                className="button ghost"
-                type="button"
-                onClick={markAllNotificationsRead}
-              >
-                ✓ Tandai semua sudah dibaca
-              </button>
-            </div>
-
-            <article className="card">
-              <div className="toolbar" style={{ marginBottom: 0 }}>
-                <div className="filters">
-                  {(
-                    [
-                      ['all', 'Semua'],
-                      ['unread', 'Belum Dibaca'],
-                      ['sla', 'Peringatan SLA'],
-                      ['ticket', 'Tiket Klien'],
-                      ['qa', 'Hasil QA']
-                    ] as const
-                  ).map(([val, label]) => (
-                    <button
-                      key={val}
-                      type="button"
-                      className={notifFilter === val ? 'active' : ''}
-                      onClick={() => setNotifFilter(val)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                {state.notifications
-                  .filter(
-                    (n) =>
-                      notifFilter === 'all' ||
-                      (notifFilter === 'unread' && !n.read) ||
-                      n.category === notifFilter
-                  )
-                  .map((n) => (
-                    <div
-                      key={n.id}
-                      className={`notif-item ${n.read ? 'read' : 'unread'}`}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => {
-                        persistState({
-                          ...state,
-                          notifications: state.notifications.map((x) =>
-                            x.id === n.id ? { ...x, read: true } : x
-                          )
-                        });
-                        if (n.targetView) setView(n.targetView);
-                      }}
-                    >
-                      <span className="notif-dot" />
-                      <div style={{ flex: 1 }}>
-                        <b>{n.title}</b>
-                        <p>{n.description}</p>
-                        <small>{n.time}</small>
-                      </div>
-                      {n.targetView && (
-                        <span className="button ghost small">Buka →</span>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            </article>
-          </section>
-        )}
-
-        {/* ====================================================================
+          {/* ====================================================================
             VIEW 9: USER PROFILE & CREDENTIALS PAGE
            ==================================================================== */}
-        {view === 'profile' && (
-          <section className="view-enter">
-            <div className="heading">
-              <div>
-                <p className="eyebrow">IDENTITAS &amp; KEAMANAN AKUN</p>
-                <h1>Profil &amp; Kredensial Saya</h1>
-                <p>Atur foto profil, nama, jabatan, kredensial kata sandi, serta koneksi OAuth.</p>
-              </div>
-            </div>
-
-            <div className="settings-grid">
-              <article className="card settings-card">
-                <div className="settings-card-head">
-                  <h2>Foto Profil &amp; Identitas</h2>
-                  <p>Informasi ini ditampilkan pada penugasan proyek, tiket, dan laporan QA.</p>
+          {view === 'profile' && (
+            <section className="view-enter">
+              <div className="heading">
+                <div>
+                  <p className="eyebrow">IDENTITAS &amp; KEAMANAN AKUN</p>
+                  <h1>Profil &amp; Kredensial Saya</h1>
+                  <p>Atur foto profil, nama, jabatan, kredensial kata sandi, serta koneksi OAuth.</p>
                 </div>
-                <form
-                  className="settings-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    pushToast('Profil Diperbarui', 'Perubahan identitas profil berhasil disimpan.');
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
-                    <span className="avatar" style={{ width: 64, height: 64, fontSize: 20 }}>
-                      {prefs.userPhotoUrl ? (
-                        <img src={prefs.userPhotoUrl} alt={prefs.userName} />
-                      ) : (
-                        prefs.userAvatar
-                      )}
-                    </span>
-                    <div style={{ flex: 1 }}>
+              </div>
+
+              <div className="settings-grid">
+                <article className="card settings-card">
+                  <div className="settings-card-head">
+                    <h2>Foto Profil &amp; Identitas</h2>
+                    <p>Informasi ini ditampilkan pada penugasan proyek, tiket, dan laporan QA.</p>
+                  </div>
+                  <form
+                    className="settings-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      pushToast('Profil Diperbarui', 'Perubahan identitas profil berhasil disimpan.');
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
+                      <span className="avatar" style={{ width: 64, height: 64, fontSize: 20 }}>
+                        {prefs.userPhotoUrl ? (
+                          <img src={prefs.userPhotoUrl} alt={prefs.userName} />
+                        ) : (
+                          prefs.userAvatar
+                        )}
+                      </span>
+                      <div style={{ flex: 1 }}>
+                        <label className="field">
+                          <span>URL Foto Profil (atau kosongkan untuk memakai inisial)</span>
+                          <input
+                            type="url"
+                            placeholder="https://images.unsplash.com/..."
+                            value={prefs.userPhotoUrl || ''}
+                            onChange={(e) =>
+                              setPrefs((p) => ({ ...p, userPhotoUrl: e.target.value }))
+                            }
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="form-grid">
                       <label className="field">
-                        <span>URL Foto Profil (atau kosongkan untuk memakai inisial)</span>
+                        <span>Nama lengkap</span>
                         <input
-                          type="url"
-                          placeholder="https://images.unsplash.com/..."
-                          value={prefs.userPhotoUrl || ''}
+                          type="text"
+                          required
+                          value={prefs.userName}
+                          onChange={(e) => setPrefs((p) => ({ ...p, userName: e.target.value }))}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Jabatan / Role Tim</span>
+                        <input
+                          type="text"
+                          value={prefs.userRole}
+                          onChange={(e) => setPrefs((p) => ({ ...p, userRole: e.target.value }))}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Inisial Avatar</span>
+                        <input
+                          type="text"
+                          maxLength={3}
+                          value={prefs.userAvatar}
                           onChange={(e) =>
-                            setPrefs((p) => ({ ...p, userPhotoUrl: e.target.value }))
+                            setPrefs((p) => ({ ...p, userAvatar: e.target.value.toUpperCase() }))
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Status Sesi</span>
+                        <input
+                          type="text"
+                          disabled
+                          value={
+                            isAuthenticated ? 'Akun cloud terautentikasi' : 'Mode Demo (data lokal)'
                           }
                         />
                       </label>
                     </div>
-                  </div>
 
-                  <div className="form-grid">
-                    <label className="field">
-                      <span>Nama lengkap</span>
-                      <input
-                        type="text"
-                        required
-                        value={prefs.userName}
-                        onChange={(e) => setPrefs((p) => ({ ...p, userName: e.target.value }))}
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Jabatan / Role Tim</span>
-                      <input
-                        type="text"
-                        value={prefs.userRole}
-                        onChange={(e) => setPrefs((p) => ({ ...p, userRole: e.target.value }))}
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Inisial Avatar</span>
-                      <input
-                        type="text"
-                        maxLength={3}
-                        value={prefs.userAvatar}
-                        onChange={(e) =>
-                          setPrefs((p) => ({ ...p, userAvatar: e.target.value.toUpperCase() }))
-                        }
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Status Sesi</span>
-                      <input
-                        type="text"
-                        disabled
-                        value={
-                          prefs.isAuthenticated ? 'Akun Terautentikasi' : 'Mode Demo (Anonim)'
-                        }
-                      />
-                    </label>
-                  </div>
-
-                  <div className="settings-form-actions">
-                    <button type="submit" className="button primary">
-                      Simpan Identitas
-                    </button>
-                  </div>
-                </form>
-              </article>
-
-              <article className="card settings-card">
-                <div className="settings-card-head">
-                  <h2>Kredensial Login &amp; OAuth</h2>
-                  <p>Perbarui email, kata sandi akun, atau tautkan akun Google / GitHub.</p>
-                </div>
-                <form
-                  className="settings-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    setPrefs((p) => ({ ...p, isAuthenticated: true }));
-                    pushToast(
-                      'Kredensial Diperbarui',
-                      'Email dan kata sandi akun Anda telah diperbarui.'
-                    );
-                  }}
-                >
-                  <div className="form-grid">
-                    <label className="field full">
-                      <span>Email Kredensial Utama</span>
-                      <input
-                        type="email"
-                        required
-                        value={prefs.userEmail}
-                        onChange={(e) => setPrefs((p) => ({ ...p, userEmail: e.target.value }))}
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Kata Sandi Baru</span>
-                      <input type="password" placeholder="Minimal 8 karakter" />
-                    </label>
-                    <label className="field">
-                      <span>Konfirmasi Kata Sandi</span>
-                      <input type="password" placeholder="Ulangi kata sandi baru" />
-                    </label>
-                  </div>
-
-                  <div style={{ marginTop: 16 }}>
-                    <small style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 8 }}>
-                      Koneksi Single Sign-On (OAuth 2.0):
-                    </small>
-                    <div className="oauth-grid" style={{ margin: 0 }}>
-                      <button
-                        type="button"
-                        className="button ghost"
-                        onClick={() => handleOAuthLogin('google')}
-                      >
-                        ✓ Hubungkan Google
-                      </button>
-                      <button
-                        type="button"
-                        className="button ghost"
-                        onClick={() => handleOAuthLogin('github')}
-                      >
-                        ✓ Hubungkan GitHub
+                    <div className="settings-form-actions">
+                      <button type="submit" className="button primary">
+                        Simpan Identitas
                       </button>
                     </div>
+                  </form>
+                </article>
+
+                <article className="card settings-card">
+                  <div className="settings-card-head">
+                    <h2>Kredensial Login</h2>
+                    <p>
+                      {isAuthenticated
+                        ? `Masuk via: ${((authUser?.app_metadata?.providers as string[] | undefined) || [authUser?.app_metadata?.provider || 'email']).join(', ')}. Kosongkan kata sandi bila hanya mengganti email.`
+                        : 'Masuk dengan akun cloud untuk mengelola email dan kata sandi.'}
+                    </p>
                   </div>
-
-                  <div className="settings-form-actions">
-                    <button type="submit" className="button primary">
-                      Perbarui Kredensial
-                    </button>
-                  </div>
-                </form>
-              </article>
-            </div>
-          </section>
-        )}
-
-        {/* ====================================================================
-            VIEW 10: WORKSPACE SETTINGS & SUPABASE HYBRID CONFIG
-           ==================================================================== */}
-        {view === 'settings' && (
-          <section className="view-enter">
-            <div className="heading">
-              <div>
-                <p className="eyebrow">KONFIGURASI SISTEM</p>
-                <h1>Pengaturan Workspace</h1>
-                <p>Sesuaikan preferensi tampilan, warna aksen, serta sinkronisasi Supabase.</p>
-              </div>
-            </div>
-
-            <div className="settings-grid">
-              <article className="card settings-card">
-                <div className="settings-card-head">
-                  <h2>1. Preferensi Tampilan</h2>
-                  <p>Atur mode terang/gelap, kenyamanan mata, dan warna aksen.</p>
-                </div>
-                <div className="settings-rows">
-                  <label className="setting-row">
-                    <div className="setting-info">
-                      <b>Tampilan gelap</b>
-                      <small>Gunakan tema gelap emerald Ruang Waktu</small>
-                    </div>
-                    <span className="switch">
-                      <input
-                        type="checkbox"
-                        checked={prefs.theme === 'dark'}
-                        onChange={(e) =>
-                          toggleThemeWithAnimation(
-                            e.target.checked ? 'dark' : 'light',
-                            e.currentTarget.parentElement
-                          )
+                  {isAuthenticated ? (
+                    <form
+                      className="settings-form"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const form = e.currentTarget;
+                        const fd = new FormData(form);
+                        const ok = await handleUpdateCredentials(
+                          String(fd.get('email') || '').trim(),
+                          String(fd.get('password') || ''),
+                          String(fd.get('confirm') || '')
+                        );
+                        if (ok) {
+                          (form.elements.namedItem('password') as HTMLInputElement).value = '';
+                          (form.elements.namedItem('confirm') as HTMLInputElement).value = '';
                         }
-                      />
-                      <span className="switch-slider" />
-                    </span>
-                  </label>
-
-                  <div className="setting-row">
-                    <div className="setting-info">
-                      <b>Kenyamanan mata (Mode terang)</b>
-                      <small>Kelembutan permukaan warna sage green agar nyaman dipandang</small>
-                    </div>
-                    <select
-                      value={prefs.lightSoftness}
-                      onChange={(e) =>
-                        setPrefs((p) => ({
-                          ...p,
-                          lightSoftness: e.target.value as UserPrefs['lightSoftness']
-                        }))
-                      }
-                    >
-                      <option value="soft">Sage Lembut #E6EEE9 (Default)</option>
-                      <option value="warm">Hangat Redup</option>
-                      <option value="crisp">Standar Bersih</option>
-                    </select>
-                  </div>
-
-                  <div className="setting-row">
-                    <div className="setting-info">
-                      <b>Warna aksen utama</b>
-                      <small>Dipisahkan dari warna semantik Lulus (Pass) agar tidak rancu</small>
-                    </div>
-                    <div className="accent-picker">
-                      {(['emerald', 'teal', 'forest', 'lime'] as const).map((acc) => (
-                        <button
-                          key={acc}
-                          type="button"
-                          className={`accent-swatch ${prefs.accent === acc ? 'active' : ''}`}
-                          data-accent={acc}
-                          onClick={() => setPrefs((p) => ({ ...p, accent: acc }))}
-                          aria-label={acc}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </article>
-
-              <article className="card settings-card">
-                <div className="settings-card-head">
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: 8,
-                      flexWrap: 'wrap'
-                    }}
-                  >
-                    <h2>2. Database Supabase &amp; Cadangan Data</h2>
-                    <span className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <Cloud size={12} />
-                      {cloudStatus === 'connected'
-                        ? 'Supabase Terhubung'
-                        : cloudStatus === 'syncing'
-                          ? 'Menyinkronkan…'
-                          : 'Penyimpanan Lokal Browser'}
-                    </span>
-                  </div>
-                  <p>Hubungkan ke PostgreSQL Supabase atau kelola cadangan JSON lokal.</p>
-                </div>
-                <form
-                  className="settings-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const client = getSupabaseClient(prefs);
-                    if (client) {
-                      setCloudStatus('syncing');
-                      pushStateToSupabase(client, state)
-                        .then(() => {
-                          setCloudStatus('connected');
-                          pushToast(
-                            'Sinkronisasi Supabase Berhasil',
-                            'Seluruh proyek, tugas, tiket, dan QA test case telah tersimpan di cloud.'
-                          );
-                        })
-                        .catch((err: Error) => {
-                          setCloudStatus('error');
-                          pushToast('Gagal Sinkronisasi Supabase', err.message);
-                        });
-                    } else {
-                      pushToast('Disimpan Lokal', 'Konfigurasi workspace berhasil disimpan.');
-                    }
-                  }}
-                >
-                  <div className="form-grid">
-                    <label className="field full">
-                      <span>Supabase Project URL</span>
-                      <input
-                        type="url"
-                        placeholder="https://xxxx.supabase.co"
-                        value={prefs.supabaseUrl || ''}
-                        onChange={(e) => setPrefs((p) => ({ ...p, supabaseUrl: e.target.value }))}
-                      />
-                    </label>
-                    <label className="field full">
-                      <span>Supabase Anon Key</span>
-                      <input
-                        type="password"
-                        placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                        value={prefs.supabaseAnonKey || ''}
-                        onChange={(e) =>
-                          setPrefs((p) => ({ ...p, supabaseAnonKey: e.target.value }))
-                        }
-                      />
-                    </label>
-                  </div>
-
-                  <div className="settings-form-actions">
-                    <button
-                      type="button"
-                      className="button danger-ghost"
-                      onClick={() =>
-                        askConfirm(
-                          'Kosongkan Seluruh Data Contoh?',
-                          'Seluruh proyek, tugas, tiket, dan test case contoh akan dihapus agar Anda bisa mulai dari awal.',
-                          () => {
-                            persistState({
-                              events: [],
-                              tasks: [],
-                              projects: [],
-                              tickets: [],
-                              scenarios: [],
-                              testCases: [],
-                              notifications: []
-                            });
-                            pushToast('Data Dikosongkan', 'Ruang kerja siap diisi dari awal.');
-                          },
-                          'Ya, Kosongkan'
-                        )
-                      }
-                    >
-                      Mulai Kosong
-                    </button>
-                    <button
-                      type="button"
-                      className="button ghost"
-                      onClick={() => {
-                        const payload = JSON.stringify({ state, prefs }, null, 2);
-                        const blob = new Blob([payload], { type: 'application/json' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `ruang-waktu-backup-${dateKey(today)}.json`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                        pushToast('Ekspor Berhasil', 'File JSON berhasil diunduh.');
                       }}
                     >
-                      Ekspor JSON
-                    </button>
-                    <button type="submit" className="button primary">
-                      Simpan &amp; Sinkronkan
-                    </button>
+                      <div className="form-grid">
+                        <label className="field full">
+                          <span>Email akun</span>
+                          <input
+                            name="email"
+                            type="email"
+                            required
+                            maxLength={254}
+                            autoComplete="email"
+                            defaultValue={authUser?.email || ''}
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Kata sandi baru</span>
+                          <input
+                            name="password"
+                            type="password"
+                            minLength={8}
+                            maxLength={128}
+                            autoComplete="new-password"
+                            placeholder="Minimal 8 karakter"
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Konfirmasi kata sandi</span>
+                          <input
+                            name="confirm"
+                            type="password"
+                            minLength={8}
+                            maxLength={128}
+                            autoComplete="new-password"
+                            placeholder="Ulangi kata sandi baru"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="settings-form-actions">
+                        <button type="submit" className="button primary">
+                          Perbarui Kredensial
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="settings-form-actions">
+                      <button type="button" className="button primary" onClick={() => setScreenMode('login')}>
+                        Masuk Akun
+                      </button>
+                    </div>
+                  )}
+                </article>
+              </div>
+            </section>
+          )}
+
+          {/* ====================================================================
+            VIEW 10: WORKSPACE SETTINGS & SUPABASE HYBRID CONFIG
+           ==================================================================== */}
+          {view === 'settings' && (
+            <section className="view-enter">
+              <div className="heading">
+                <div>
+                  <p className="eyebrow">KONFIGURASI SISTEM</p>
+                  <h1>Pengaturan Workspace</h1>
+                  <p>Sesuaikan preferensi tampilan, warna aksen, serta sinkronisasi Supabase.</p>
+                </div>
+              </div>
+
+              <div className="settings-grid">
+                <article className="card settings-card">
+                  <div className="settings-card-head">
+                    <h2>1. Preferensi Tampilan</h2>
+                    <p>Atur mode terang/gelap, kenyamanan mata, dan warna aksen.</p>
                   </div>
-                </form>
-              </article>
-            </div>
-          </section>
-        )}
+                  <div className="settings-rows">
+                    <label className="setting-row">
+                      <div className="setting-info">
+                        <b>Tampilan gelap</b>
+                        <small>Gunakan tema gelap emerald Ruang Waktu</small>
+                      </div>
+                      <span className="switch">
+                        <input
+                          type="checkbox"
+                          checked={prefs.theme === 'dark'}
+                          onChange={(e) =>
+                            toggleThemeWithAnimation(
+                              e.target.checked ? 'dark' : 'light',
+                              e.currentTarget.parentElement
+                            )
+                          }
+                        />
+                        <span className="switch-slider" />
+                      </span>
+                    </label>
+
+                    <div className="setting-row">
+                      <div className="setting-info">
+                        <b>Kenyamanan mata (Mode terang)</b>
+                        <small>Kelembutan permukaan warna sage green agar nyaman dipandang</small>
+                      </div>
+                      <select
+                        value={prefs.lightSoftness}
+                        onChange={(e) =>
+                          setPrefs((p) => ({
+                            ...p,
+                            lightSoftness: e.target.value as UserPrefs['lightSoftness']
+                          }))
+                        }
+                      >
+                        <option value="soft">Sage Lembut #E6EEE9 (Default)</option>
+                        <option value="warm">Hangat Redup</option>
+                        <option value="crisp">Standar Bersih</option>
+                      </select>
+                    </div>
+
+                    <div className="setting-row">
+                      <div className="setting-info">
+                        <b>Warna aksen utama</b>
+                        <small>Dipisahkan dari warna semantik Lulus (Pass) agar tidak rancu</small>
+                      </div>
+                      <div className="accent-picker">
+                        {(['emerald', 'teal', 'forest', 'lime'] as const).map((acc) => (
+                          <button
+                            key={acc}
+                            type="button"
+                            className={`accent-swatch ${prefs.accent === acc ? 'active' : ''}`}
+                            data-accent={acc}
+                            onClick={() => setPrefs((p) => ({ ...p, accent: acc }))}
+                            aria-label={acc}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="card settings-card">
+                  <div className="settings-card-head">
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 8,
+                        flexWrap: 'wrap'
+                      }}
+                    >
+                      <h2>2. Efek Suara &amp; Custom Icons</h2>
+                      <span className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <VolumeIcon size={13} color="var(--emerald)" />
+                        Web Audio SFX
+                      </span>
+                    </div>
+                    <p>Atur umpan balik audio klik interaksi di seluruh workspace dan tinjau desain katalog custom icons.</p>
+                  </div>
+                  <div className="settings-rows">
+                    <label className="setting-row">
+                      <div className="setting-info">
+                        <b>Efek Suara Klik (SFX)</b>
+                        <small>Umpan balik audio sintetis halus di seluruh tombol, tab, kartu, dan aksi aplikasi</small>
+                      </div>
+                      <span className="switch">
+                        <input
+                          type="checkbox"
+                          checked={prefs.soundEffects}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            setPrefs((p) => ({ ...p, soundEffects: val }));
+                            if (val) sound.playClick();
+                          }}
+                        />
+                        <span className="switch-slider" />
+                      </span>
+                    </label>
+
+                    <div className="setting-row" style={{ alignItems: 'center' }}>
+                      <div className="setting-info">
+                        <b>Tinjau Katalog Custom Icons</b>
+                        <small>Review desain {CUSTOM_ICONS_CATALOG.length} icon SVG custom Ruang Waktu beserta referensi platformnya</small>
+                      </div>
+                      <button
+                        type="button"
+                        className="button outline"
+                        style={{ height: 34, fontSize: 13, gap: 6 }}
+                        onClick={() => {
+                          if (prefs.soundEffects) sound.playClick();
+                          setIsIconShowcaseOpen(true);
+                        }}
+                      >
+                        <Sparkles size={14} color="var(--emerald)" />
+                        <span>Review Icon Custom ({CUSTOM_ICONS_CATALOG.length})</span>
+                      </button>
+                    </div>
+
+                    <div className="setting-row" style={{ alignItems: 'center' }}>
+                      <div className="setting-info">
+                        <b>Cadangan Data Lokal (JSON)</b>
+                        <small>Unduh seluruh data proyek, tiket, tugas, dan test case dalam format JSON</small>
+                      </div>
+                      <button
+                        type="button"
+                        className="button ghost"
+                        style={{ height: 34, fontSize: 13 }}
+                        onClick={() => {
+                          const payload = JSON.stringify({ state, prefs }, null, 2);
+                          const blob = new Blob([payload], { type: 'application/json' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `ruang-waktu-backup-${dateKey(today)}.json`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                          pushToast('Ekspor Berhasil', 'File JSON cadangan berhasil diunduh.');
+                        }}
+                      >
+                        Ekspor JSON
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </section>
+          )}
         </main>
       </div>
 
@@ -5065,7 +5415,7 @@ export default function RuangWaktuApp() {
                       />
                     </label>
                     <label className="field">
-                      <span>Tiket Asal (Opsional)</span>
+                      <span>Tiket Asal</span>
                       <select
                         name="ticketCode"
                         defaultValue={(editingItem as TaskItem | null)?.ticketCode || ''}
@@ -5073,13 +5423,13 @@ export default function RuangWaktuApp() {
                         <option value="">— Tanpa Tiket —</option>
                         {state.tickets.map((tk) => (
                           <option key={tk.id} value={tk.code}>
-                            {tk.code}: {tk.title.slice(0, 32)}
+                            {tk.code}: {tk.title.length > 24 ? tk.title.slice(0, 24) + '…' : tk.title}
                           </option>
                         ))}
                       </select>
                     </label>
                     <label className="field">
-                      <span>Test Case QA Terkait (Opsional)</span>
+                      <span>Test Case QA</span>
                       <select
                         name="testCaseCode"
                         defaultValue={(editingItem as TaskItem | null)?.testCaseCode || ''}
@@ -5087,7 +5437,7 @@ export default function RuangWaktuApp() {
                         <option value="">— Tanpa Test Case —</option>
                         {state.testCases.map((tc) => (
                           <option key={tc.id} value={tc.code}>
-                            {tc.code}: {tc.title.slice(0, 32)}
+                            {tc.code}: {tc.title.length > 24 ? tc.title.slice(0, 24) + '…' : tc.title}
                           </option>
                         ))}
                       </select>
@@ -5111,7 +5461,7 @@ export default function RuangWaktuApp() {
                         name="code"
                         defaultValue={
                           (editingItem as ClientTicket | null)?.code ||
-                          `TKT-${state.tickets.length + 101}`
+                          `TKT-${nextCodeNumber(state.tickets.map((x) => x.code), 101)}`
                         }
                       />
                     </label>
@@ -5207,7 +5557,7 @@ export default function RuangWaktuApp() {
                       />
                     </label>
                     <label className="field">
-                      <span>Test Case Verifikasi (Opsional)</span>
+                      <span>Test Case QA</span>
                       <select
                         name="linkedTestCaseCode"
                         defaultValue={
@@ -5217,7 +5567,7 @@ export default function RuangWaktuApp() {
                         <option value="">— Tanpa Test Case —</option>
                         {state.testCases.map((tc) => (
                           <option key={tc.id} value={tc.code}>
-                            {tc.code}: {tc.title.slice(0, 32)}
+                            {tc.code}: {tc.title.length > 24 ? tc.title.slice(0, 24) + '…' : tc.title}
                           </option>
                         ))}
                       </select>
@@ -5241,7 +5591,7 @@ export default function RuangWaktuApp() {
                         name="code"
                         defaultValue={
                           (editingItem as TestScenario | null)?.code ||
-                          `TS-${String(state.scenarios.length + 1).padStart(2, '0')}`
+                          `TS-${String(nextCodeNumber(state.scenarios.map((x) => x.code), 1)).padStart(2, '0')}`
                         }
                       />
                     </label>
@@ -5298,7 +5648,7 @@ export default function RuangWaktuApp() {
                         name="code"
                         defaultValue={
                           (editingItem as TestCase | null)?.code ||
-                          `TC-${String(state.testCases.length + 1).padStart(3, '0')}`
+                          `TC-${String(nextCodeNumber(state.testCases.map((x) => x.code), 1)).padStart(3, '0')}`
                         }
                       />
                     </label>
@@ -5572,8 +5922,8 @@ export default function RuangWaktuApp() {
           }}
         >
           <div className="confirm-modal">
-            <div className="confirm-icon">
-              <AlertTriangle size={22} />
+            <div className="confirm-icon" data-tone={confirmDialog.tone || 'danger'}>
+              {confirmDialog.tone === 'primary' ? <Cloud size={22} /> : <AlertTriangle size={22} />}
             </div>
             <h3>{confirmDialog.title}</h3>
             <p>{confirmDialog.message}</p>
@@ -5587,7 +5937,7 @@ export default function RuangWaktuApp() {
               </button>
               <button
                 type="button"
-                className="button danger-solid"
+                className={confirmDialog.tone === 'primary' ? 'button primary' : 'button danger-solid'}
                 onClick={() => {
                   const fn = confirmDialog.onConfirm;
                   setConfirmDialog(null);
@@ -5595,6 +5945,77 @@ export default function RuangWaktuApp() {
                 }}
               >
                 {confirmDialog.confirmLabel || 'Ya, Hapus'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================================
+          CUSTOM ICON SHOWCASE MODAL (DESIGN SYSTEM & USER REVIEW)
+         ====================================================================== */}
+      {isIconShowcaseOpen && (
+        <div
+          className="overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsIconShowcaseOpen(false);
+          }}
+        >
+          <div
+            className="modal"
+            style={{ maxWidth: 680 }}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Katalog Custom Icons Ruang Waktu"
+          >
+            <header>
+              <div>
+                <p className="eyebrow">DESIGN SYSTEM &amp; REVIEW</p>
+                <h2>Katalog Custom Icons</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (prefs.soundEffects) sound.playClick();
+                  setIsIconShowcaseOpen(false);
+                }}
+                aria-label="Tutup dialog"
+              >
+                <X size={16} />
+              </button>
+            </header>
+
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '8px 0 16px' }}>
+              Seluruh icon di bawah dirancang secara custom khusus untuk Ruang Waktu dengan referensi estetika platform modern (Linear, Raycast, Vercel, Supabase, Cron) dengan grid presisi 24x24 dan stroke-width 1.8.
+            </p>
+
+            <div className="icon-showcase-grid">
+              {CUSTOM_ICONS_CATALOG.map((item) => {
+                const IconComponent = item.component;
+                return (
+                  <div key={item.name} className="icon-showcase-card">
+                    <div className="icon-showcase-preview">
+                      <IconComponent size={24} />
+                    </div>
+                    <span className="icon-showcase-name">{item.label}</span>
+                    <span className="icon-showcase-ref">{item.reference}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="modal-footer" style={{ marginTop: 20 }}>
+              <span className="badge">Total {CUSTOM_ICONS_CATALOG.length} Custom Icons Aktif</span>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => {
+                  if (prefs.soundEffects) sound.playClick();
+                  setIsIconShowcaseOpen(false);
+                }}
+              >
+                Selesai Review
               </button>
             </div>
           </div>

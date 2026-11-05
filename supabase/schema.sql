@@ -8,7 +8,7 @@ create extension if not exists "pgcrypto";
 -- 1. TABEL PROJECTS (PROYEK & KLIEN)
 create table if not exists public.projects (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   name text not null,
   client_name text default '',
   lead text default '',
@@ -21,7 +21,7 @@ create table if not exists public.projects (
 -- 2. TABEL TASKS (TUGAS TIM PER PROYEK + TAUTAN TIKET & TEST CASE)
 create table if not exists public.tasks (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   title text not null,
   due_date text default '',
   priority text not null default 'Sedang',
@@ -41,7 +41,7 @@ create table if not exists public.tasks (
 -- Alur status: Open -> Investigasi -> Diperbaiki -> Terverifikasi -> Ditutup
 create table if not exists public.tickets (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   code text not null,
   title text not null,
   client_name text not null,
@@ -61,7 +61,7 @@ create table if not exists public.tickets (
 -- 4. TABEL TEST SCENARIOS (SKENARIO PENGUJIAN QA)
 create table if not exists public.test_scenarios (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   code text not null,
   title text not null,
   project text not null,
@@ -73,7 +73,7 @@ create table if not exists public.test_scenarios (
 -- 5. TABEL TEST CASES (DETAIL LANGKAH PENGUJIAN QA + TAUTAN TIKET & TUGAS)
 create table if not exists public.test_cases (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   scenario_id text not null,
   code text not null,
   title text not null,
@@ -92,7 +92,7 @@ create table if not exists public.test_cases (
 -- 6. TABEL EVENTS (JADWAL SPRINT / RILIS / RAPAT)
 create table if not exists public.events (
   id text primary key default gen_random_uuid()::text,
-  user_id uuid default auth.uid() references auth.users(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   title text not null,
   date text not null,
   start_time text default '',
@@ -102,47 +102,9 @@ create table if not exists public.events (
   created_at timestamptz not null default now()
 );
 
--- AKTIFKAN ROW LEVEL SECURITY (RLS) UNTUK PRIVASI DATA KLIEN
-alter table public.projects enable row level security;
-alter table public.tasks enable row level security;
-alter table public.tickets enable row level security;
-alter table public.test_scenarios enable row level security;
-alter table public.test_cases enable row level security;
-alter table public.events enable row level security;
-
--- Kebijakan RLS: Hanya pengguna terautentikasi yang memiliki akses ke datanya sendiri
-create policy "Authenticated users manage own projects"
-  on public.projects for all
-  to authenticated
-  using (auth.uid() = user_id or user_id is null)
-  with check (auth.uid() = user_id or user_id is null);
-
-create policy "Authenticated users manage own tasks"
-  on public.tasks for all
-  to authenticated
-  using (auth.uid() = user_id or user_id is null)
-  with check (auth.uid() = user_id or user_id is null);
-
-create policy "Authenticated users manage own tickets"
-  on public.tickets for all
-  to authenticated
-  using (auth.uid() = user_id or user_id is null)
-  with check (auth.uid() = user_id or user_id is null);
-
-create policy "Authenticated users manage own test_scenarios"
-  on public.test_scenarios for all
-  to authenticated
-  using (auth.uid() = user_id or user_id is null)
-  with check (auth.uid() = user_id or user_id is null);
-
-create policy "Authenticated users manage own test_cases"
-  on public.test_cases for all
-  to authenticated
-  using (auth.uid() = user_id or user_id is null)
-  with check (auth.uid() = user_id or user_id is null);
-
-create policy "Authenticated users manage own events"
-  on public.events for all
-  to authenticated
-  using (auth.uid() = user_id or user_id is null)
-  with check (auth.uid() = user_id or user_id is null);
+-- ROW LEVEL SECURITY, INDEKS & BATAS PANJANG TEKS
+-- Kebijakan RLS, indeks user_id, dan constraint panjang teks didefinisikan di
+--   supabase/migrations/20261105000000_harden_rls.sql
+-- Untuk instalasi baru: jalankan file ini, LALU jalankan file migrasi tersebut.
+-- PENTING: jangan pernah menambahkan "or user_id is null" pada policy — itu membuat
+-- baris tanpa pemilik dapat dibaca dan diubah oleh semua user.
